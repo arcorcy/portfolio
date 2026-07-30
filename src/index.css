@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------
+   Design tokens — Portfolio Arthur Corcy 2026
+   Source of truth for colours, type scale and radii. Values come from
+   the Paper mock (1482px artboard); see design.md for the intent.
+   ------------------------------------------------------------------ */
+@theme {
+  --color-ink: #010102;
+  --color-paper: #f7f6f1;
+  --color-white: #ffffff;
+  --color-mute: #666666;
+  --color-line: #e7e7e7;
+  --color-forest: #0a5f10;
+  --color-lime: #c8ff5e;
+  --color-fog: #8c8c8c;
+  --color-dim: #d9d9e5;
+
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 20px;
+  --radius-shot: 24px;
+  --radius-panel: 28px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: var(--color-lime);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 3px solid #61df0180;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* Type scale ------------------------------------------------------
+   Weights stay at 600 for display copy: the mock reads as tight and
+   quiet rather than heavy. Sizes are the mock's px converted to vw so
+   they hold their proportion on a ~1440 viewport.
+   ------------------------------------------------------------------ */
+@utility display-xl {
+  font-weight: 600;
+  letter-spacing: -0.036em;
+  line-height: 1;
+  font-size: clamp(3rem, 6.9vw, 6.25rem);
+}
+
+@utility display-lg {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.01;
+  font-size: clamp(2.2rem, 4.65vw, 4.2rem);
+}
+
+@utility display-md {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.06;
+  font-size: clamp(1.7rem, 2.9vw, 2.6rem);
+}
+
+/* Oversized body copy: dark section paragraphs, project title. */
+@utility display-sm {
+  font-weight: 700;
+  letter-spacing: -0.029em;
+  line-height: 1.3;
+  font-size: clamp(1.35rem, 2.5vw, 2.25rem);
+}
+
+/* Grain overlay --------------------------------------------------- */
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0.038;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain-shift 6s steps(6) infinite;
+}
+
+@keyframes grain-shift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-2%, 3%);
+  }
+  40% {
+    transform: translate(3%, -2%);
+  }
+  60% {
+    transform: translate(-1%, -3%);
+  }
+  80% {
+    transform: translate(2%, 1%);
+  }
+}
+
+/* Link underline reveal ------------------------------------------ */
+.link-swipe {
+  position: relative;
+  display: inline-block;
+}
+
+.link-swipe::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s var(--ease-out-expo);
+}
+
+.link-swipe:hover::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .grain::after {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
