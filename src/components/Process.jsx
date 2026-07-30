@@ -5,34 +5,11 @@ import artAI from '../img/AI.png'
 import artFIG from '../img/FIG.png'
 import artTST from '../img/TST.png'
 import artPLG from '../img/PLG.png'
-import artPiece from '../img/Vector.png'
 
 const ART = { AI: artAI, FIG: artFIG, TST: artTST, PLG: artPLG }
 
-/* PLG was exported as an empty frame, with the puzzle piece in Vector.png.
-   Layering them beats flattening: the piece can drift inside its own frame. */
-function Art({ icon, reduce }) {
-  if (icon !== 'PLG') {
-    return <img src={ART[icon]} alt="" className="h-full w-full object-contain" draggable={false} />
-  }
-
-  return (
-    <div className="relative h-full w-full">
-      <img src={artPLG} alt="" className="h-full w-full object-contain" draggable={false} />
-      <motion.img
-        src={artPiece}
-        alt=""
-        draggable={false}
-        className="absolute left-1/2 top-1/2 w-[46%] -translate-x-1/2 -translate-y-1/2"
-        animate={reduce ? undefined : { rotate: [-6, 8, -6] }}
-        transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
-      />
-    </div>
-  )
-}
-
-/* Three nested layers so the transforms never fight: position, then the
-   one-shot entrance, then the endless drift. */
+/* Two nested layers so the transforms never fight: the one-shot entrance,
+   then the endless drift. */
 function Mark({ mark, i, reduce }) {
   return (
     <div
@@ -52,7 +29,12 @@ function Mark({ mark, i, reduce }) {
           animate={reduce ? undefined : { y: [0, -14, 0], rotate: [0, 2.2, 0] }}
           transition={{ duration: 9 + i * 1.7, repeat: Infinity, ease: 'easeInOut' }}
         >
-          <Art icon={mark.icon} reduce={reduce} />
+          <img
+            src={ART[mark.icon]}
+            alt=""
+            className="h-full w-full object-contain"
+            draggable={false}
+          />
         </motion.div>
       </motion.div>
     </div>
