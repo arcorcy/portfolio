@@ -106,10 +106,18 @@ export default function Study({ project, mat, from, onClose }) {
             on the writing. Its own proportions, no crop, since nothing here has
             to line up with anything.
 
+            It runs off the bottom of the panel rather than sitting inside it, so
+            it reads as sliding under the body instead of being parked in a
+            corner. That is what the overflow-hidden here is for; the cut then
+            falls exactly on the seam between the two surfaces.
+
+            A grid rather than an absolute image, so a longer title can never run
+            underneath it: the two columns cannot overlap whatever the copy does.
+
             Gone below lg rather than stacked. It says nothing the title does not,
             so on a phone it would only be a screen to scroll past before the
             first sentence. Decorative to the letter, hence aria-hidden. */}
-        <div className="gutter grid min-h-[46svh] items-end gap-10 pb-14 pt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div className="gutter grid min-h-[46svh] items-end gap-10 overflow-hidden pb-14 pt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
           <div>
             <p className="text-sm font-bold text-ink/60">{project.subtitle}</p>
             <h1 id={titleId} className="display-md mt-4 max-w-[46rem]">
@@ -122,11 +130,13 @@ export default function Study({ project, mat, from, onClose }) {
               src={project.study.cover}
               alt=""
               aria-hidden="true"
-              /* Half the shot radius, written as half of it rather than as 12px,
-                 so the two stay in step if the token moves. The full radius is
-                 cut for a card the size of a thumbnail; here the image is the
-                 width of a column and the same corner reads as a bevel. */
-              className="hidden w-full rounded-[calc(var(--radius-shot)/2)] lg:block"
+              /* -14rem against a 36rem column: 3.5rem of it cancels the panel's
+                 own bottom padding and the rest carries a third of the image past
+                 the seam. Half the shot radius, written as half of it rather than
+                 as 12px, so the two stay in step if the token moves: the full
+                 radius is cut for a card the size of a thumbnail, and on an image
+                 this wide the same corner reads as a bevel. */
+              className="hidden w-full -rotate-3 rounded-[calc(var(--radius-shot)/2)] shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] lg:-mb-[14rem] lg:block"
             />
           )}
         </div>
