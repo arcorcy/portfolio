@@ -113,30 +113,18 @@ export default function Hero() {
             </Word>
           </Line>
 
-          {/* Where the claim breaks, which is a matter of reading and not of
-              masks any more. On one line where it fits; on a phone the lead gets
-              its own line so the accent starts at the margin, and the accent then
-              wraps inside its line on its own. Only one of the two is ever
-              displayed, so nothing is read twice. */}
-          <span className="hidden lg:block">
-            <Line className={CLAIM_LEADING}>
-              <Word delay={0.45} reduce={reduce}>
-                {hero.claim.lead}{' '}
-              </Word>
-              <Accent reduce={reduce} />
-            </Line>
-          </span>
-
-          <span className="block lg:hidden">
-            <Line>
-              <Word delay={0.45} reduce={reduce}>
-                {hero.claim.lead}
-              </Word>
-            </Line>
-            <Line className={CLAIM_LEADING}>
-              <Accent reduce={reduce} />
-            </Line>
-          </span>
+          {/* One declared line at every width, and it wraps where the measure
+              says. There is no second copy for a phone any more: the lead used to
+              be given a line of its own so the accent could start at the margin,
+              which left "I'm an" alone on a line and broke the accent in two. The
+              size below lg is set so the wrap falls after "product" instead, so
+              the lead keeps company. */}
+          <Line className={CLAIM_LEADING}>
+            <Word delay={0.45} reduce={reduce}>
+              {hero.claim.lead}{' '}
+            </Word>
+            <Accent reduce={reduce} />
+          </Line>
         </h1>
 
         <motion.p

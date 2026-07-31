@@ -116,15 +116,17 @@
    allowed to wrap, because the mask is per word there (Hero.jsx) rather than per
    line. Re-measure if the hero copy changes length.
 
-   7.25 is the greeting's own width in em plus slack: 5.654em of text, the 0.164em
-   space after it, the 0.1em before the portrait and the portrait's 1.2em come to
-   7.118em, and the extra 2% keeps a rounding from wrapping the first line. cqw
-   and not vw, so the gutter and any scrollbar are already out of it.
+   The divisor is the widest line the hero has to hold, which is the claim's first
+   line and not the greeting: "I'm an" is 2.578em, the space after it 0.164em, and
+   the two accent words that have to keep it company come to 1.131em and 3.836em
+   with the lime padding they each carry, so 7.709em against the greeting's 7.118em.
+   7.86 adds 2% of slack: under it the line wraps a word early and the accent
+   breaks in the wrong place, over it the type is smaller for nothing. cqw and not
+   vw, so the gutter and any scrollbar are already out of it.
 
    3.9rem is where 6vw lands at 1024px, so the step at the breakpoint is a pixel
-   rather than the 70 it would otherwise be. It starts binding around 484px, above
-   which the first line stops filling the measure and the type simply stops
-   growing. */
+   rather than the 70 it would otherwise be. It starts binding around 530px, above
+   which the lines stop filling the measure and the type simply stops growing. */
 @utility display-xl {
   font-weight: 600;
   letter-spacing: -0.036em;
@@ -132,7 +134,7 @@
   font-size: clamp(1.9rem, 6vw, 6.25rem);
 
   @media (width < 64rem) {
-    font-size: min(calc(100cqw / 7.25), 3.9rem);
+    font-size: min(calc(100cqw / 7.86), 3.9rem);
   }
 }
 
