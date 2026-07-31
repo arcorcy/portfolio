@@ -76,7 +76,7 @@ Centrés : Works, How I work, Testimonials. Alignés à gauche : Experiences, Ot
 
 Cards blanches : `border border-line` (parcours, One more thing). Les cartes posées en désordre et le deck portent une ombre portée douce plutôt qu'un filet, renforcée sur la carte survolée.
 
-Quatre passe-partout de projet, un par projet, uniquement derrière une couverture dans Works : `--color-mat-pink` `#f3cbf2`, `--color-mat-green` `#b8d9a4`, `--color-mat-blue` `#a8dcf2`, `--color-mat-sand` `#d9dbd0`. Ce ne sont pas des accents et ils ne concurrencent pas le lime.
+Quatre passe-partout de projet, un par projet, uniquement derrière une couverture dans Works : `--color-mat-pink` `#f3cbf2`, `--color-mat-orange` `#ff9338`, `--color-mat-blue` `#a8dcf2`, `--color-mat-sand` `#d9dbd0`. Ce ne sont pas des accents et ils ne concurrencent pas le lime.
 
 ## Motion
 

@@ -32,6 +32,9 @@
    not run, which is what the slot is for while a screenshot is still coming. */
 const variableGenerator = '/covers/variable-generator.png'
 
+// Second project. Copy still to come, so the card carries a placeholder sentence.
+const emeis = '/covers/emeis.png'
+
 export const projects = [
   {
     id: 'figma-plugin',
@@ -80,11 +83,11 @@ export const projects = [
   },
   {
     id: 'project-02',
-    title: 'Placeholder project. Replace with the real one, framed as a sentence.',
+    title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
-    cover: '',
+    cover: emeis,
     link: null,
-    mat: 'green',
+    mat: 'orange',
     x: 74,
     y: 29,
     size: 38,

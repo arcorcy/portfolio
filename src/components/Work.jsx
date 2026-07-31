@@ -20,7 +20,7 @@ import Study from './Study.jsx'
    sees them: a template string would generate nothing. */
 const MAT = {
   pink: 'bg-mat-pink',
-  green: 'bg-mat-green',
+  orange: 'bg-mat-orange',
   blue: 'bg-mat-blue',
   sand: 'bg-mat-sand',
 }
