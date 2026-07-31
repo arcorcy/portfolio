@@ -122,7 +122,11 @@ export default function Study({ project, mat, from, onClose }) {
               src={project.study.cover}
               alt=""
               aria-hidden="true"
-              className="hidden w-full rounded-shot lg:block"
+              /* Half the shot radius, written as half of it rather than as 12px,
+                 so the two stay in step if the token moves. The full radius is
+                 cut for a card the size of a thumbnail; here the image is the
+                 width of a column and the same corner reads as a bevel. */
+              className="hidden w-full rounded-[calc(var(--radius-shot)/2)] lg:block"
             />
           )}
         </div>
