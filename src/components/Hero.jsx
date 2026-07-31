@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { EASE, HIDDEN_Y } from '../lib/motion.jsx'
 import { hero } from '../data/content.js'
@@ -33,9 +33,9 @@ function Line({ children, className = '' }) {
    taller than the line it sits on, and the old mask was cutting its crown. */
 const CLIP = 'inset(-1.5em -0.25em -0.22em -0.25em)'
 
-function Word({ children, delay, reduce, className = '' }) {
+function Word({ children, delay, reduce, className = '', maskRef }) {
   return (
-    <span className="inline-block" style={{ clipPath: CLIP }}>
+    <span ref={maskRef} className="inline-block" style={{ clipPath: CLIP }}>
       <motion.span
         className={`inline-block whitespace-pre ${className}`}
         initial={{ y: reduce ? 0 : HIDDEN_Y, opacity: reduce ? 0 : 1 }}
@@ -66,13 +66,20 @@ function Word({ children, delay, reduce, className = '' }) {
    glyph, which is the more visible of the two.
 
    Side padding in em, so it holds its proportion at every step of the size. */
-function Accent({ reduce }) {
+function Accent({ reduce, endRef }) {
+  const words = hero.claim.accent.split(' ')
+
   return (
     <span className="[word-spacing:-0.2em]">
-      {hero.claim.accent.split(' ').map((word, i) => (
+      {words.map((word, i) => (
         <Fragment key={i}>
           {i > 0 && ' '}
-          <Word delay={0.52 + i * 0.06} reduce={reduce} className="bg-lime px-[0.14em] text-ink">
+          <Word
+            delay={0.52 + i * 0.06}
+            reduce={reduce}
+            className="bg-lime px-[0.14em] text-ink"
+            maskRef={i === words.length - 1 ? endRef : undefined}
+          >
             {word}
           </Word>
         </Fragment>
@@ -81,9 +88,51 @@ function Accent({ reduce }) {
   )
 }
 
+/* The note hangs off the end of the accent rather than off the column, so its
+   right edge and the asterisk it answers line up.
+
+   That end is a text advance, which no CSS length knows, so it is measured. The
+   mask box is the thing to measure: it is the word's own box and, unlike the span
+   inside it, nothing ever transforms it, so the reveal cannot pollute the reading.
+   One trigger on the column covers both terms, the type being sized off the
+   column. fonts.ready catches the reflow when Manrope lands, since until then the
+   width is the fallback's. The plain resize listener is not redundant with the
+   observer: the observer only delivers at the end of a frame, so it is the one
+   that reports a column that changed without the window doing so, while the
+   listener is the one that fires where frames do not. */
+function useAccentInset(column, end) {
+  const [inset, setInset] = useState(0)
+
+  useEffect(() => {
+    const col = column.current
+    if (!col || !end.current) return undefined
+
+    const measure = () => {
+      if (!col.isConnected || !end.current) return
+      setInset(col.getBoundingClientRect().right - end.current.getBoundingClientRect().right)
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(col)
+    window.addEventListener('resize', measure)
+    document.fonts?.ready.then(measure)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [column, end])
+
+  return inset
+}
+
 export default function Hero() {
   const reduce = useReducedMotion()
   const greeting = hero.greeting.split(' ')
+  const column = useRef(null)
+  const accentEnd = useRef(null)
+  const inset = useAccentInset(column, accentEnd)
 
   return (
     <section id="top" className="gutter relative flex min-h-svh flex-col justify-center py-28">
@@ -94,7 +143,7 @@ export default function Hero() {
           viewport: below lg the size is the measure divided by the greeting's own
           width, and cqw is the one unit that already has the gutter and any
           scrollbar taken out of it. Its own width does not depend on the type. */}
-      <div className="@container relative z-10 w-full">
+      <div ref={column} className="@container relative z-10 w-full">
         <h1 className="display-xl">
           <Line>
             {greeting.map((word, i) => (
@@ -123,7 +172,7 @@ export default function Hero() {
             <Word delay={0.45} reduce={reduce}>
               {hero.claim.lead}{' '}
             </Word>
-            <Accent reduce={reduce} />
+            <Accent reduce={reduce} endRef={accentEnd} />
           </Line>
         </h1>
 
@@ -131,6 +180,9 @@ export default function Hero() {
           initial={{ opacity: 0, y: 16, filter: 'blur(8px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ duration: 1, delay: 0.9, ease: EASE }}
+          // marginRight rather than a width: the paragraph keeps its own measure
+          // and simply stops where the accent stops.
+          style={{ marginRight: inset }}
           className="ml-auto mt-10 max-w-[26rem] text-right text-[0.9375rem] leading-[1.6] text-ink lg:mt-14"
         >
           {hero.note}
