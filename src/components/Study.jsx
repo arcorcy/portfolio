@@ -138,7 +138,11 @@ export default function Study({ project, mat, from, onClose }) {
             <div className="mx-auto max-w-[42rem]">
               {project.study.sections.map((section, i) => (
                 <section key={i} className={i ? 'mt-20' : ''}>
-                  <h2 className="display-sm max-w-[34rem]">{section.title}</h2>
+                  {/* No cap of its own: the column is the measure. A 34rem cap
+                      here broke the titles at 81% of the width the paragraphs
+                      under them use, which reads as a title stuck rather than as
+                      a shorter measure. */}
+                  <h2 className="display-sm">{section.title}</h2>
 
                   {section.paragraphs.map((text, j) => (
                     <p

@@ -6,7 +6,7 @@
 export const profile = {
   name: 'Arthur Corcy',
   role: 'AI Product Designer',
-  company: 'ARNEO_',
+  company: 'Agence Mantu',
   location: 'Paris, France',
   email: 'ar.corcy@gmail.com',
   linkedin: 'https://www.linkedin.com/in/arthur-corcy/',
@@ -32,7 +32,7 @@ export const hero = {
 }
 
 export const work = {
-  title: ['Things I have shipped'],
+  title: ["Things I've shipped"],
 }
 
 /*
