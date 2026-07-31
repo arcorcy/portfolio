@@ -101,21 +101,36 @@ export default function Study({ project, mat, from, onClose }) {
         exit={{ opacity: 0, transition: { duration: 0.11 } }}
         transition={COPY_IN}
       >
-        <div className="gutter flex min-h-[46svh] flex-col justify-end pb-14 pt-28">
-          <p className="text-sm font-bold text-ink/60">{project.subtitle}</p>
-          <h1 id={titleId} className="display-md mt-4 max-w-[46rem]">
-            {project.title}
-          </h1>
+        {/* The cover keeps the title company rather than opening the body: it
+            fills the empty half of the coloured panel, and the body then starts
+            on the writing. Its own proportions, no crop, since nothing here has
+            to line up with anything.
+
+            Gone below lg rather than stacked. It says nothing the title does not,
+            so on a phone it would only be a screen to scroll past before the
+            first sentence. Decorative to the letter, hence aria-hidden. */}
+        <div className="gutter grid min-h-[46svh] items-end gap-10 pb-14 pt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+          <div>
+            <p className="text-sm font-bold text-ink/60">{project.subtitle}</p>
+            <h1 id={titleId} className="display-md mt-4 max-w-[46rem]">
+              {project.title}
+            </h1>
+          </div>
+
+          {project.study.cover && (
+            <img
+              src={project.study.cover}
+              alt=""
+              aria-hidden="true"
+              className="hidden w-full rounded-shot lg:block"
+            />
+          )}
         </div>
 
         {/* The body lifts off the coloured surface, the way the cover sat on the
             card's mat. */}
         <div className="min-h-svh rounded-t-[2rem] bg-paper pb-32 pt-16">
           <div className="gutter">
-            {project.study.cover && (
-              <Figure cover={project.study.cover} seed={0} />
-            )}
-
             <div className="mx-auto max-w-[42rem]">
               {project.study.sections.map((section, i) => (
                 <section key={i} className={i ? 'mt-20' : ''}>
