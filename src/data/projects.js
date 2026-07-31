@@ -24,6 +24,14 @@
  *            well as a wide screen. The sign decides whether it leads or lags.
  */
 
+/* The plugin's own interface, used twice: the card cover in Works and the banner
+   at the top of the case study.
+
+   A path under /public rather than an import, unlike the illustrations in
+   src/img: a missing file is then a missing image instead of a build that will
+   not run, which is what the slot is for while a screenshot is still coming. */
+const variableGenerator = '/covers/variable-generator.png'
+
 export const projects = [
   {
     id: 'figma-plugin',
@@ -31,7 +39,7 @@ export const projects = [
        draws the placeholder tile until the real screenshot arrives. Kept in
        French, as written: it is Arthur's copy and translating it is his call. */
     study: {
-      cover: null,
+      cover: variableGenerator,
       sections: [
         {
           title:
@@ -61,7 +69,7 @@ export const projects = [
     title:
       'How I helped my colleagues to accelerate their Figma project setup with a Figma Plugin',
     subtitle: 'Internal tool',
-    cover: '',
+    cover: variableGenerator,
     link: null,
     mat: 'pink',
     x: 25,
