@@ -153,6 +153,26 @@ function Icon({ track, active, from, lit, drift, index, reduce }) {
 const PINNED_SIZE = 'min(100%, 34rem, 62svh)'
 const SEGMENT_SIZE = 'min(100%, 26rem, 44svh)'
 
+/* A segment plays when it is centred in the view, not when its first pixels
+   show. On a share of its own height it set off while the illustration was
+   still a strip at the bottom edge and the eye was two lines into the
+   paragraph above it.
+
+   Pulling the observer's bottom edge up to the midline and asking for half the
+   square says exactly that: half of it inside the top half of the screen puts
+   its centre on the middle of the screen. Stated that way the moment is the
+   same on every viewport and behind every length of paragraph, which a share
+   of the square's height is not.
+
+   It works because the square is at most 44svh, so it always fits in the half
+   screen the observer is left with and can reach a ratio of one. Raise that cap
+   past 50svh and the trigger stops firing at all. */
+const SEGMENT_IN = { once: true, margin: '0px 0px -50% 0px', amount: 0.5 }
+
+/* The pinned composition only uses this to know whether it is the layout on
+   duty at this width, so a share of it is exactly the right question. */
+const PINNED_IN = { once: true, amount: 0.4 }
+
 /* The composition has two lives.
 
    In the pinned sequence it is a single composition that rearranges as `active`
@@ -162,7 +182,7 @@ const SEGMENT_SIZE = 'min(100%, 26rem, 44svh)'
    at that boundary, rather than a frozen picture. */
 function Composition({ active, from, segment = false, reduce, className = '' }) {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, amount: 0.4 })
+  const inView = useInView(ref, segment ? SEGMENT_IN : PINNED_IN)
   const lit = !segment || inView
 
   const entrance =
