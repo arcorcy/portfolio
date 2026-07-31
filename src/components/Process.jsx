@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import {
   AnimatePresence,
   motion,
+  useInView,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
@@ -38,14 +39,17 @@ const SPRING = { type: 'spring', stiffness: 120, damping: 16, mass: 0.9 }
 /* ------------------------------------------------------------------
    Link arcs
    ------------------------------------------------------------------ */
-function Links({ step, reduce }) {
+function Links({ step, reduce, draw = false }) {
   return (
     <svg
       viewBox="0 0 100 100"
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
     >
-      <AnimatePresence initial={false}>
+      {/* The pinned sequence has its first arcs on screen from the start, so it
+          mounts them already drawn. A segment is mounted at the moment it should
+          draw, which is the one case where the mount animation is wanted. */}
+      <AnimatePresence initial={draw}>
         {step.links.map(([a, b, bow], i) => {
           const d = arcPath(
             step.icons.find((icon) => icon.id === a),
@@ -86,30 +90,50 @@ function Links({ step, reduce }) {
 /* ------------------------------------------------------------------
    Composition
    ------------------------------------------------------------------ */
-function Icon({ track, active, index, reduce }) {
-  const frame = track.frames[active]
+/* One icon's place in a step, written as the transform that puts it there.
+
+   `arriving` borrows the look of an icon that takes no part in a step, small
+   and invisible: it is already the right state to come out of, so a segment's
+   first arrangement needs no separate entrance of its own. */
+function frameStyle(frame, arriving = false) {
+  const shown = frame.visible && !arriving
+
+  return {
+    x: offset(frame.x),
+    y: offset(frame.y),
+    rotate: frame.rot,
+    scale: (frame.size / BASE) * (shown ? 1 : 0.55),
+    opacity: shown ? 1 : 0,
+  }
+}
+
+function Icon({ track, active, from, lit, drift, index, reduce }) {
+  const target = track.frames[active]
+  /* frames[-1] is undefined, which is exactly what the first segment wants: no
+     arrangement to come out of, so it arrives instead of rearranging. */
+  const start = from == null ? null : (track.frames[from] ?? null)
 
   return (
     <motion.div
       className="absolute left-0 top-0 aspect-square"
-      style={{ width: `${BASE}%` }}
-      // No mount animation: the first step's arrangement is the starting state,
+      // No mount animation: whatever the icon is waiting at is a state to be in,
       // not something to animate into.
       initial={false}
-      animate={{
-        x: offset(frame.x),
-        y: offset(frame.y),
-        rotate: frame.rot,
-        scale: (frame.size / BASE) * (frame.visible ? 1 : 0.55),
-        opacity: frame.visible ? 1 : 0,
-      }}
-      transition={reduce ? { duration: 0 } : SPRING}
+      style={{ width: `${BASE}%` }}
+      animate={lit ? frameStyle(target) : frameStyle(start ?? target, !start)}
+      transition={
+        reduce
+          ? { duration: 0 }
+          : // Only an arrival is staggered. A rearrangement moves as one, the way
+            // it does in the pinned sequence.
+            { ...SPRING, delay: lit && !start ? index * 0.07 : 0 }
+      }
     >
       {/* The idle drift sits on its own layer so it never fights the transform
           the step layout writes above it. */}
       <motion.div
         className="h-full w-full"
-        animate={reduce ? undefined : { y: [0, -7, 0], rotate: [0, 1.4, 0] }}
+        animate={drift ? { y: [0, -7, 0], rotate: [0, 1.4, 0] } : undefined}
         transition={{ duration: 8 + index * 1.6, repeat: Infinity, ease: 'easeInOut' }}
       >
         <img
@@ -123,28 +147,59 @@ function Icon({ track, active, index, reduce }) {
   )
 }
 
-function Composition({ active, reduce, className = '' }) {
-  const entrance = reduce
-    ? {}
-    : {
-        initial: { opacity: 0, scale: 0.92 },
-        whileInView: { opacity: 1, scale: 1 },
-        viewport: { once: true, amount: 0.2 },
-        transition: { duration: 1, ease: EASE },
-      }
+/* 62svh, not 68: the title shares the pinned screen with the composition, and a
+   short laptop has to fit both. A segment shares its screen with a paragraph
+   instead, and gets the smaller of the two. */
+const PINNED_SIZE = 'min(100%, 34rem, 62svh)'
+const SEGMENT_SIZE = 'min(100%, 26rem, 44svh)'
+
+/* The composition has two lives.
+
+   In the pinned sequence it is a single composition that rearranges as `active`
+   moves through the steps. In the flowed layout there is one per step, each a
+   still, and `from` is the arrangement it plays out of when its block reaches
+   the screen: a segment therefore shows the same move the pinned version makes
+   at that boundary, rather than a frozen picture. */
+function Composition({ active, from, segment = false, reduce, className = '' }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.4 })
+  const lit = !segment || inView
+
+  const entrance =
+    reduce || segment
+      ? // A segment needs no entrance of its own: its icons do the arriving.
+        {}
+      : {
+          initial: { opacity: 0, scale: 0.92 },
+          whileInView: { opacity: 1, scale: 1 },
+          viewport: { once: true, amount: 0.2 },
+          transition: { duration: 1, ease: EASE },
+        }
 
   return (
     <motion.div
+      ref={ref}
       aria-hidden="true"
       className={`relative aspect-square ${className}`}
-      // 62svh, not 68: the title now shares the pinned screen with it, and a
-      // short laptop has to fit both.
-      style={{ width: 'min(100%, 34rem, 62svh)' }}
+      style={{ width: segment ? SEGMENT_SIZE : PINNED_SIZE }}
       {...entrance}
     >
-      <Links step={steps[active]} reduce={reduce} />
+      {lit && <Links step={steps[active]} reduce={reduce} draw={segment} />}
       {TRACKS.map((track, i) => (
-        <Icon key={track.id} track={track} active={active} index={i} reduce={reduce} />
+        <Icon
+          key={track.id}
+          track={track}
+          active={active}
+          from={segment ? from : null}
+          lit={lit}
+          /* The drift keeps a composition alive through the minutes the pinned
+             panel is on screen. A segment is scrolled past, so it would only
+             pull against the arrival. Hanging it off `inView` also means the
+             layout that is display:none at this width never runs it. */
+          drift={!segment && !reduce && inView}
+          index={i}
+          reduce={reduce}
+        />
       ))}
     </motion.div>
   )
@@ -224,7 +279,17 @@ function FlowStep({ step, index, reduce }) {
         ))}
       </motion.div>
 
-      {reduce && <Composition active={index} reduce className="hidden justify-self-end lg:block" />}
+      {/* The illustration comes after the words it belongs to, so the section
+          reads as a situation described and then shown. It is a grid item, so at
+          lg (which only happens under reduced motion) it takes the second
+          column instead of stacking under the text. */}
+      <Composition
+        active={index}
+        from={index - 1}
+        segment
+        reduce={reduce}
+        className="mx-auto lg:mx-0 lg:justify-self-end"
+      />
     </div>
   )
 }
@@ -285,8 +350,10 @@ export default function Process() {
       </div>
 
       {/* Below lg, and whenever motion is turned down, the same steps read as a
-          plain sequence of paragraphs. The composition needs room to move that a
-          phone does not have, so it only comes back on a wide screen. */}
+          plain sequence: each step's text, then that step's arrangement. The
+          composition cannot rearrange under a paragraph the way it does beside
+          one, so it is cut into four stills, each played out of the one before
+          it as its block arrives. */}
       <div
         className={`gutter relative z-10 mx-auto w-full max-w-[1400px] pb-24 pt-24 sm:pb-32 sm:pt-32 ${
           reduce ? '' : 'lg:hidden'
