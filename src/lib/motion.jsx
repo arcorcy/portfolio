@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import {
   motion,
+  useInView,
   useScroll,
   useTransform,
   useSpring,
@@ -10,57 +11,51 @@ import {
 export const EASE = [0.16, 1, 0.3, 1]
 
 /* ------------------------------------------------------------------
-   Reveal — fades and lifts a block into view once.
-   ------------------------------------------------------------------ */
-export function Reveal({
-  children,
-  delay = 0,
-  y = 26,
-  blur = true,
-  once = true,
-  amount = 0.35,
-  className = '',
-  as = 'div',
-}) {
-  const reduce = useReducedMotion()
-  const MotionTag = motion[as] ?? motion.div
-
-  return (
-    <MotionTag
-      className={className}
-      initial={{
-        opacity: 0,
-        y: reduce ? 0 : y,
-        filter: blur && !reduce ? 'blur(8px)' : 'blur(0px)',
-      }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={{ once, amount }}
-      transition={{ duration: 0.9, delay, ease: EASE }}
-    >
-      {children}
-    </MotionTag>
-  )
-}
-
-/* ------------------------------------------------------------------
    Headline — word-by-word mask reveal.
    Input: array of lines, one entry per visual line. No emphasis: the
    titles carry the information on their own.
    ------------------------------------------------------------------ */
+/* The display sizes run a line-height near 1, tighter than the font's own
+   glyph box, so descenders sit below the line box by roughly 0.17em. The mask
+   has to reach that far down or it cuts the tail off every g, p and y. The
+   padding opens the clip, the equal negative margin gives the space straight
+   back so the layout height does not move, and the words start below the
+   enlarged clip rather than below the line box. */
+const MASK_ROOM = '0.22em'
+
+/* Exported because the hero animates its own title on mount rather than on
+   scroll, so it cannot use Headline, but it must not reinvent these two
+   numbers: getting them wrong is how the descenders got cut. */
+export const HIDDEN_Y = '128%'
+export const maskStyle = { paddingBottom: MASK_ROOM, marginBottom: `-${MASK_ROOM}` }
+
 export function Headline({
   lines,
   className = 'display-lg',
   delay = 0,
   stagger = 0.055,
   as: Tag = 'h2',
+  shown,
 }) {
   const reduce = useReducedMotion()
+  const ref = useRef(null)
+  /* The observer watches the heading, never the words. A word waiting to be
+     revealed sits below the mask, and an element clipped out by an ancestor's
+     overflow reports no intersection at all, so hanging whileInView on the
+     words meant a heading that scrolled into view and never animated. It only
+     ever worked because the words used to peek a hundredth of an em past the
+     mask; widening the mask for the descenders took that sliver away. */
+  const inView = useInView(ref, { once: true, amount: 0 })
+  /* A caller can own the trigger instead of the observer: the Works title is
+     first shown as a teaser inside the hero, on a timer rather than on the
+     moment it enters view, and it is the same element either way. */
+  const lit = shown ?? inView
   let i = -1
 
   return (
-    <Tag className={className}>
+    <Tag ref={ref} className={className}>
       {lines.map((line, li) => (
-        <span key={li} className="block overflow-hidden pb-[0.06em]">
+        <span key={li} className="block overflow-hidden" style={maskStyle}>
           {line.split(' ').map((word, wi) => {
             if (word === '') return null
             i += 1
@@ -68,11 +63,12 @@ export function Headline({
               <motion.span
                 key={`${li}-${wi}`}
                 className="inline-block whitespace-pre"
-                initial={{ y: reduce ? 0 : '105%', opacity: reduce ? 0 : 1 }}
-                whileInView={{ y: '0%', opacity: 1 }}
-                // amount 0: the words are masked, so a strict threshold could
-                // leave a heading hidden if it was scrolled past quickly.
-                viewport={{ once: true, amount: 0 }}
+                initial={false}
+                animate={
+                  reduce
+                    ? { y: 0, opacity: lit ? 1 : 0 }
+                    : { y: lit ? '0%' : HIDDEN_Y, opacity: 1 }
+                }
                 transition={{ duration: 1, delay: delay + i * stagger, ease: EASE }}
               >
                 {word}{' '}
@@ -94,65 +90,83 @@ export function Headline({
 // readable before it starts leaving the screen.
 const LIT_AT = 0.9
 
-function Word({ children, progress, range }) {
+/* Words wrapped in braces in the copy are the accented ones. A brace can span
+   several words, so the flag carries across tokens rather than being decided
+   token by token, and the braces are stripped wherever they sit: that way a
+   closing brace can follow the punctuation without swallowing it. */
+function parseAccents(text) {
+  let inside = false
+
+  return text.split(' ').map((token) => {
+    const opens = token.includes('{')
+    const closes = token.includes('}')
+    const accent = inside || opens
+
+    if (opens && !closes) inside = true
+    if (closes) inside = false
+
+    return { word: token.replace(/[{}]/g, ''), accent }
+  })
+}
+
+function Word({ children, progress, range, accent }) {
   const opacity = useTransform(progress, range, [0.16, 1])
   return (
-    <motion.span style={{ opacity }} className="inline-block whitespace-pre">
+    <motion.span
+      style={{ opacity }}
+      className={`inline-block whitespace-pre${accent ? ' text-lime' : ''}`}
+    >
       {children}{' '}
     </motion.span>
   )
 }
 
-export function ScrollWords({ text, className = '' }) {
+export function ScrollWords({ text, className = '', progress, range }) {
   const ref = useRef(null)
   const reduce = useReducedMotion()
-  const { scrollYProgress } = useScroll({
+  const own = useScroll({
     target: ref,
     offset: ['start 0.85', 'end 0.45'],
   })
 
+  const words = parseAccents(text)
+
   if (reduce) {
     return (
       <p ref={ref} className={className}>
-        {text}
+        {words.map(({ word, accent }, i) => (
+          <span key={i} className={accent ? 'text-lime' : undefined}>
+            {word}{' '}
+          </span>
+        ))}
       </p>
     )
   }
 
-  const words = text.split(' ')
+  // A pinned section drives the words from its own progress and hands over the
+  // slice of it that belongs to this paragraph, because the paragraph itself
+  // never moves and so has no travel of its own to measure.
+  const driven = progress != null
+  const source = driven ? progress : own.scrollYProgress
+  const [from, to] = driven ? range : [0, LIT_AT]
+  const span = to - from
 
   return (
     <p ref={ref} className={className}>
-      {words.map((word, i) => (
+      {words.map(({ word, accent }, i) => (
         <Word
           key={i}
-          progress={scrollYProgress}
-          range={[(i / words.length) * LIT_AT, ((i + 1) / words.length) * LIT_AT]}
+          progress={source}
+          accent={accent}
+          range={[
+            from + (i / words.length) * span,
+            from + ((i + 1) / words.length) * span,
+          ]}
         >
           {word}
         </Word>
       ))}
     </p>
-  )
-}
-
-/* ------------------------------------------------------------------
-   Parallax — subtle vertical drift tied to scroll.
-   ------------------------------------------------------------------ */
-export function Parallax({ children, distance = 60, className = '' }) {
-  const ref = useRef(null)
-  const reduce = useReducedMotion()
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ['start end', 'end start'],
-  })
-  const raw = useTransform(scrollYProgress, [0, 1], [distance, -distance])
-  const y = useSpring(raw, { stiffness: 90, damping: 30, mass: 0.4 })
-
-  return (
-    <div ref={ref} className={className}>
-      <motion.div style={{ y: reduce ? 0 : y }}>{children}</motion.div>
-    </div>
   )
 }
 

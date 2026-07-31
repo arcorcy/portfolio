@@ -20,7 +20,7 @@ export default function Contact() {
   }
 
   return (
-    <footer id="contact" className="bg-ink px-5 text-white sm:px-8 lg:px-12">
+    <footer id="contact" className="gutter bg-ink text-white">
       <div className="mx-auto w-full max-w-[1400px]">
         <div className="flex flex-col gap-8 py-10 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-base leading-[1.63] text-white/60">

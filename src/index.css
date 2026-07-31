@@ -11,14 +11,25 @@
   --color-white: #ffffff;
   --color-mute: #666666;
   --color-line: #e7e7e7;
-  --color-forest: #0a5f10;
   --color-lime: #c8ff5e;
-  --color-fog: #8c8c8c;
   --color-dim: #d9d9e5;
+
+  /* Grid lines. One neutral grey, deliberately: mid grey over the near-white
+     paper reads as a pale line and the same grey over the near-black section
+     reads as a faint one, so a single grid can cross both. */
+  --color-mesh: rgba(140, 140, 140, 0.1224);
+
+  /* Project mats — the coloured card each cover sits on in the Work section.
+     These are not accents and they do not compete with the lime: they belong
+     to a project, they only ever appear behind a cover, and there is exactly
+     one per project so the constellation is readable at a glance. */
+  --color-mat-pink: #f3cbf2;
+  --color-mat-green: #80C300;
+  --color-mat-blue: #a8dcf2;
+  --color-mat-sand: #d9dbd0;
 
   --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
 
-  --radius-card: 20px;
   --radius-shot: 24px;
   --radius-panel: 28px;
 
@@ -57,16 +68,59 @@
   }
 }
 
+/* Gutter ----------------------------------------------------------
+   The margin every section keeps on both sides. One variable rather
+   than a trio of padding classes repeated in nine files, so changing
+   it later is one edit.
+
+   128px on a real desktop, as asked. Fixed and not a percentage: the
+   sections already cap their content at 1400px, so on a wide screen it
+   is that cap which makes the margin, and a percentage would only keep
+   growing without adding anything. It steps through 80px between 1024
+   and 1280 because a jump straight from 40 to 128 there would strangle
+   the two-column layouts.
+   ------------------------------------------------------------------ */
+:root {
+  --gutter: 1.25rem;
+}
+
+@media (width >= 40rem) {
+  :root {
+    --gutter: 2.5rem;
+  }
+}
+
+@media (width >= 64rem) {
+  :root {
+    --gutter: 5rem;
+  }
+}
+
+@media (width >= 80rem) {
+  :root {
+    --gutter: 8rem;
+  }
+}
+
+@utility gutter {
+  padding-inline: var(--gutter);
+}
+
 /* Type scale ------------------------------------------------------
    Weights stay at 600 for display copy: the mock reads as tight and
    quiet rather than heavy. Sizes are the mock's px converted to vw so
    they hold their proportion on a ~1440 viewport.
    ------------------------------------------------------------------ */
+/* Hero only. The slope and the floor are measured, not chosen: the claim has to
+   stay on one line from 1024px up, and its accent alone has to fit a 360px
+   screen, because a line that wraps breaks the reveal mask (the mask clips to
+   the container, so a word parked below its own line shows through on the next
+   one). Re-measure if the hero copy changes length. */
 @utility display-xl {
   font-weight: 600;
   letter-spacing: -0.036em;
   line-height: 1;
-  font-size: clamp(3rem, 6.9vw, 6.25rem);
+  font-size: clamp(1.9rem, 6vw, 6.25rem);
 }
 
 @utility display-lg {
@@ -89,6 +143,17 @@
   letter-spacing: -0.029em;
   line-height: 1.3;
   font-size: clamp(1.35rem, 2.5vw, 2.25rem);
+}
+
+/* The sequence paragraph when it has the full measure to itself, below lg.
+   A separate step rather than display-sm because display-sm's slope is tuned
+   for a half column: at 980px it lands on 24px, which reads as body copy in a
+   section that is meant to hit hard. Steeper slope, same tightening. */
+@utility display-step {
+  font-weight: 700;
+  letter-spacing: -0.029em;
+  line-height: 1.22;
+  font-size: clamp(2rem, 5vw, 3rem);
 }
 
 /* Grain overlay --------------------------------------------------- */

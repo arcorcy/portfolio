@@ -5,15 +5,32 @@ Les tokens vivent dans `src/index.css` sous `@theme` (Tailwind v4) : c'est la so
 ## Ordre des sections
 
 1. **Hero** (`#top`) — nom + glyphe peace, accroche, un seul CTA, bloc visuel carré pivoté qui déborde sur la section suivante.
-2. **Works** (`#work`) — « Things I have shipped ». Deck de cartes + panneau de texte.
+2. **Works** (`#work`) — « Things I have shipped ». Constellation de cartes en vrac : le survol met une carte en avant, éteint les autres à 10 % et affiche son texte à côté.
 3. **How I work** (`#process`) — section sombre, 4 paragraphes alternés gauche/droite.
-4. **Testimonials** — « What my clients and colleagues say ». Cartes en désordre, déplaçables.
+4. **Testimonials** — « What my clients and colleagues say ». Deck de cartes citation + panneau d'attribution, flèches et jet à la souris.
 5. **Experiences** (`#experience`) — « Where I have worked » + « And where I learned ».
 6. **Other stuffs** (`#story`) — « I got here the long way » + cartes de faits.
 7. **One more thing** — emplacement réservé, en attente de contenu.
 8. **Contact** (`#contact`) — footer sombre.
 
 La nav ne référence que 5 de ces sections : le hero, les témoignages et « One more thing » n'ont pas d'entrée.
+
+## Navigation
+
+Deux formes du même objet. Au-dessus de 768px, la barre complète : photo, cinq sections, pastille lime sur la section active. En dessous, deux pastilles côte à côte, photo + section courante + chevron d'un côté, Contact de l'autre, même style de pastille. Le seuil vient d'une mesure : la barre complète a besoin de 596px avec les libellés actuels.
+
+## Gouttière
+
+Une seule variable, `--gutter` dans `index.css`, appliquée par l'utilitaire `gutter` sur chaque section. Ne pas remettre de trio `px-5 sm:px-8 lg:px-12` dans un composant.
+
+| Largeur d'écran | Gouttière |
+| --- | --- |
+| < 640px | 20px |
+| 640 à 1023px | 40px |
+| 1024 à 1279px | 80px |
+| ≥ 1280px | **128px** |
+
+Valeur fixe et non un pourcentage : les sections plafonnent déjà leur contenu à 1400px, donc au-delà de ~1660px de large c'est ce plafond qui fait la marge et un pourcentage ne ferait que grossir sans rien apporter. Mesuré à 1920px, la marge effective est de 260px alors que la gouttière vaut 128 : elle est un plancher, pas la marge finale. Le palier à 80px entre 1024 et 1280 existe parce qu'un saut direct de 40 à 128 y étranglait les mises en page à deux colonnes.
 
 ## Couleurs
 
@@ -24,12 +41,12 @@ La nav ne référence que 5 de ces sections : le hero, les témoignages et « On
 --color-mute:    #666666   /* texte secondaire */
 --color-line:    #e7e7e7   /* filet des cards parcours */
 --color-forest:  #0a5f10   /* intitulé de poste dans le parcours */
---color-lime:    #c8ff5e   /* accent plein : nav active, CTA email */
+--color-lime:    #c8ff5e   /* accent plein : nav active, CTA email, mots-clés de How I work */
 --color-fog:     #8c8c8c   /* fond du bloc visuel du hero */
 --color-dim:     #d9d9e5   /* paragraphes de la section sombre */
 ```
 
-Règle d'usage : **un seul accent plein**, le lime, et seulement à deux endroits (pastille de nav active, bouton email du footer). Le forest ne sert qu'aux intitulés de poste. Tout le reste est ink / mute / white.
+Règle d'usage : **un seul accent plein**, le lime, et seulement à trois endroits (pastille de nav active, bouton email du footer, un mot-clé par paragraphe de How I work). Le forest ne sert qu'aux intitulés de poste. Tout le reste est ink / mute / white.
 
 ## Typographie
 
@@ -40,7 +57,7 @@ Manrope seule. Le display est en **poids 600**, pas 800 : la maquette lit serré
 | `display-xl` | `clamp(3rem, 6.9vw, 6.25rem)` | 600 | nom du hero |
 | `display-lg` | `clamp(2.2rem, 4.65vw, 4.2rem)` | 600 | titres de section |
 | `display-md` | `clamp(1.7rem, 2.9vw, 2.6rem)` | 600 | sous-sections (parcours) |
-| `display-sm` | `clamp(1.35rem, 2.5vw, 2.25rem)` | 700 | paragraphes de la section sombre, titre de projet |
+| `display-sm` | `clamp(1.35rem, 2.5vw, 2.25rem)` | 700 | paragraphes de la section sombre, titre de projet au survol, nom du client |
 
 Texte courant : 1rem / `leading-[1.63]` / `text-mute`. Micro-labels : 11 à 14px, poids 700 à 800, casse normale.
 
@@ -53,11 +70,13 @@ Centrés : Works, How I work, Testimonials. Alignés à gauche : Experiences, Ot
 ## Panels, cards, rayons
 
 - `rounded-panel` (28px) : bloc visuel du hero.
-- `rounded-shot` (24px) : cartes du deck projet.
-- `rounded-card` (20px) : témoignages, cards parcours, cards de faits, bloc « One more thing ».
+- `rounded-shot` (24px) : cartes du deck témoignage, passe-partout des cartes projet.
+- `rounded-card` (20px) : cards parcours, cards de faits, bloc « One more thing ».
 - `rounded-full` : nav, CTA, flèches du slider.
 
-Cards blanches : soit `ring-1 ring-ink/[0.07]` (témoignages), soit `border border-line` (parcours, One more thing). Les cartes posées en désordre portent une ombre portée douce plutôt qu'un filet.
+Cards blanches : `border border-line` (parcours, One more thing). Les cartes posées en désordre et le deck portent une ombre portée douce plutôt qu'un filet, renforcée sur la carte survolée.
+
+Quatre passe-partout de projet, un par projet, uniquement derrière une couverture dans Works : `--color-mat-pink` `#f3cbf2`, `--color-mat-green` `#b8d9a4`, `--color-mat-blue` `#a8dcf2`, `--color-mat-sand` `#d9dbd0`. Ce ne sont pas des accents et ils ne concurrencent pas le lime.
 
 ## Motion
 
@@ -68,18 +87,21 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 | Reveal | blocs de contenu | opacity + Y 26px + blur 8px, `once: true`, 0.9s |
 | Headline mask | tous les titres | mot par mot, masque `overflow-hidden`, stagger 55ms |
 | ScrollWords | section sombre | opacité 0.16 → 1 mot par mot, pilotée par la position de scroll (réversible au scroll inverse) |
-| Deck projet | Works | flèches + jet de la carte du dessus au-delà de 110px, ressort vers le slot |
-| Cartes flottantes | Testimonials | dérive lente en boucle, drag contraint au conteneur (`dragConstraints`) |
+| Quadrillage | Works + How I work | 15 colonnes en desktop, plancher de cellule à 48px en dessous. Apparaît en fondu à l'arrivée de Works, disparaît avant la fin de How I work |
+| Constellation | Works | survol : la carte monte à 1,04 et les autres tombent à 10 %. Le texte apparaît collé à la carte, du côté où il y a de la place, et la suit au drag. Dérive au scroll, flottement en boucle, drag contraint au plateau |
+| Deck témoignage | Testimonials | flèches + jet de la carte du dessus au-delà de 110px, ressort vers le slot |
+| Séquence épinglée | How I work | 4 étapes, une par écran de scroll. Le texte suit le scroll mot à mot puis part en fondu, la composition d'icônes se réarrange au ressort |
 | Parallaxe | bloc visuel du hero | suit le curseur (±40/28px) et dérive au scroll |
 | Magnetic | CTA | l'élément se penche vers le curseur |
 | Curseur custom | desktop uniquement | `mix-blend-difference`, grossit sur `[data-cursor]` |
 | Grain | global | overlay SVG animé, opacité 0.038 |
 
-Toutes les animations tombent à zéro sous `prefers-reduced-motion: reduce` : le deck et les témoignages perdent le drag et se placent en dur.
+Toutes les animations tombent à zéro sous `prefers-reduced-motion: reduce` : les decks et la constellation perdent le drag et se placent en dur, et How I work abandonne l'épinglage pour une suite de paragraphes.
 
 ## Dégradation mobile
 
-- Deck projet : le geste reste (drag horizontal), les flèches restent.
+- Deck témoignage : le geste reste (drag horizontal), les flèches restent.
+- Works et How I work : sous 1024px, la constellation devient une bande horizontale à défilement par accroche (swipe ou flèches) avec le texte dessous, et la séquence épinglée une suite de paragraphes. Ni le survol ni la composition d'icônes n'ont de sens sur un téléphone.
 - Témoignages : le désordre et le drag disparaissent, on retombe sur une grille lisible de cards.
 - Bloc visuel du hero : passe dans le flux, sous le CTA, sans parallaxe.
 - Cards de faits (Other stuffs) : dans le flux, côte à côte.
