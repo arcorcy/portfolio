@@ -123,11 +123,28 @@
   font-size: clamp(1.9rem, 6vw, 6.25rem);
 }
 
+/* Section titles. Every one of them is declared on a single line and wraps on
+   its own on a narrow screen, and the two settings want opposite things there.
+
+   1.01 is for a single line, where nothing is stacked and the tight measure is
+   the whole point. The looser value is measured against Manrope's own ink: at
+   weight 600 an ascender reaches 0.73em over the baseline and a descender falls
+   0.255em under it, so two stacked lines leave (line-height - 0.985)em between
+   them. At 1.01 that is 0.025em, under a pixel at the 35.2px floor, which is
+   the g of one line touching the i of the next.
+
+   40rem, because the longest title of the three wraps at 450px and the shortest
+   at 359px: the switch is well clear of both, and above it the desktop measure
+   is untouched. Re-measure if a title gets longer. */
 @utility display-lg {
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.01;
   font-size: clamp(2.2rem, 4.65vw, 4.2rem);
+
+  @media (width < 40rem) {
+    line-height: 1.15;
+  }
 }
 
 @utility display-md {

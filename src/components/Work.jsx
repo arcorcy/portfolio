@@ -101,8 +101,12 @@ function Nudge({ opacity }) {
       viewBox="0 0 40 64"
       fill="none"
       aria-hidden="true"
-      className="mx-auto mt-5 block text-ink"
-      style={{ opacity }}
+      /* Out of the flow, so the space it needs is never charged to the layout
+         it leaves behind. pointer-events-none because at rest it is an
+         invisible 40x64 box sitting over the top of the strip. */
+      className="pointer-events-none absolute left-1/2 top-full mt-5 text-ink"
+      // The centring translate goes through Framer, which owns the transform.
+      style={{ opacity, x: '-50%' }}
     >
       <path
         d="M20 4C12 18 28 32 20 48"
@@ -198,10 +202,14 @@ function Teaser({ reduce }) {
         animate={{ opacity: shown ? 1 : 0 }}
         transition={{ duration: 0.8, ease: EASE }}
       >
+        {/* relative for the nudge, which hangs off the bottom of the title
+            rather than sitting under it in the flow: it belongs to the hero and
+            fades out for good, and 84px of dead space between the title and the
+            cards is what it left behind once it had gone. */}
         <a
           href={live ? '#work' : undefined}
           data-cursor={live ? 'link' : undefined}
-          className="block"
+          className="relative block"
         >
           <Headline lines={work.title} className="display-lg text-center" shown={shown} />
           {!reduce && <Nudge opacity={nudge} />}
