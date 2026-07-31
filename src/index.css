@@ -111,16 +111,29 @@
    quiet rather than heavy. Sizes are the mock's px converted to vw so
    they hold their proportion on a ~1440 viewport.
    ------------------------------------------------------------------ */
-/* Hero only. The slope and the floor are measured, not chosen: the claim has to
-   stay on one line from 1024px up, and its accent alone has to fit a 360px
-   screen, because a line that wraps breaks the reveal mask (the mask clips to
-   the container, so a word parked below its own line shows through on the next
-   one). Re-measure if the hero copy changes length. */
+/* Hero only. The slope is measured, not chosen: the claim has to stay on one line
+   from 1024px up. Below that the hero is set to the measure instead, and it is
+   allowed to wrap, because the mask is per word there (Hero.jsx) rather than per
+   line. Re-measure if the hero copy changes length.
+
+   7.25 is the greeting's own width in em plus slack: 5.654em of text, the 0.164em
+   space after it, the 0.1em before the portrait and the portrait's 1.2em come to
+   7.118em, and the extra 2% keeps a rounding from wrapping the first line. cqw
+   and not vw, so the gutter and any scrollbar are already out of it.
+
+   3.9rem is where 6vw lands at 1024px, so the step at the breakpoint is a pixel
+   rather than the 70 it would otherwise be. It starts binding around 484px, above
+   which the first line stops filling the measure and the type simply stops
+   growing. */
 @utility display-xl {
   font-weight: 600;
   letter-spacing: -0.036em;
   line-height: 1;
   font-size: clamp(1.9rem, 6vw, 6.25rem);
+
+  @media (width < 64rem) {
+    font-size: min(calc(100cqw / 7.25), 3.9rem);
+  }
 }
 
 /* Section titles. Every one of them is declared on a single line and wraps on
