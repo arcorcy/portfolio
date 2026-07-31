@@ -27,6 +27,15 @@ export function offset(v) {
 const INK = 0.823
 const GAP = 2
 
+/* How much of its slot in the line each drawn card takes. Under a full slot, so
+   a line of three reads as a row and not as a stack. */
+const ROW_FILL = 0.72
+
+/* The line sits a little under the size the composition gives its cards, so
+   every segment has the same beat of them growing into place. Without it a step
+   with a single icon would start and end in the same spot and play nothing. */
+const ROW_SCALE = 0.86
+
 /* The beats inside one step, as a fraction of its own screen of scroll: the
    text fades in, the words light up one by one, the step holds, the text
    leaves. Every step gets the same rhythm, including the first and the last. */
@@ -70,6 +79,36 @@ export function resolveTracks(steps) {
 
     return { id, frames }
   })
+}
+
+/* The line a flowed segment starts from: the step's own icons laid out across
+   the middle of the box, upright and evenly spaced, keyed by id.
+
+   Every segment therefore assembles out of the same neutral row rather than out
+   of whatever the step before it happened to leave on screen, so each one reads
+   as its own composition being built. Icons the step does not use are absent
+   from the map and stay where the carried frames left them, out of sight.
+
+   `order` is the place in the line, which is what a stagger should follow: the
+   row assembles left to right, not in the order the tracks happen to be in. */
+export function lineFrames(step) {
+  const n = step.icons.length
+  const slot = (ROW_FILL * 100) / (n * INK)
+
+  return new Map(
+    step.icons.map((icon, i) => [
+      icon.id,
+      {
+        ...icon,
+        x: (100 * (i + 0.5)) / n,
+        y: 50,
+        rot: 0,
+        size: Math.min(icon.size, slot) * ROW_SCALE,
+        visible: true,
+        order: i,
+      },
+    ]),
+  )
 }
 
 /* A quadratic arc from the edge of one card to the edge of the other. For an

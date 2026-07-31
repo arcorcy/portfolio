@@ -12,6 +12,7 @@ import { Headline, ScrollWords, EASE } from '../lib/motion.jsx'
 import {
   BASE,
   arcPath,
+  lineFrames,
   offset,
   paragraphRanges,
   resolveTracks,
@@ -35,6 +36,9 @@ const TRACKS = resolveTracks(steps)
 const PER_STEP = 90
 
 const SPRING = { type: 'spring', stiffness: 120, damping: 16, mass: 0.9 }
+
+// Between one card of a segment's line leaving and the next.
+const ROW_STAGGER = 0.06
 
 /* ------------------------------------------------------------------
    Link arcs
@@ -107,11 +111,8 @@ function frameStyle(frame, arriving = false) {
   }
 }
 
-function Icon({ track, active, from, lit, drift, index, reduce }) {
+function Icon({ track, active, start = null, lit, drift, index, reduce }) {
   const target = track.frames[active]
-  /* frames[-1] is undefined, which is exactly what the first segment wants: no
-     arrangement to come out of, so it arrives instead of rearranging. */
-  const start = from == null ? null : (track.frames[from] ?? null)
 
   return (
     <motion.div
@@ -124,9 +125,9 @@ function Icon({ track, active, from, lit, drift, index, reduce }) {
       transition={
         reduce
           ? { duration: 0 }
-          : // Only an arrival is staggered. A rearrangement moves as one, the way
-            // it does in the pinned sequence.
-            { ...SPRING, delay: lit && !start ? index * 0.07 : 0 }
+          : // A line assembles left to right. The pinned composition has no line
+            // to leave, and rearranges as one.
+            { ...SPRING, delay: lit && start ? start.order * ROW_STAGGER : 0 }
       }
     >
       {/* The idle drift sits on its own layer so it never fights the transform
@@ -153,21 +154,29 @@ function Icon({ track, active, from, lit, drift, index, reduce }) {
 const PINNED_SIZE = 'min(100%, 34rem, 62svh)'
 const SEGMENT_SIZE = 'min(100%, 26rem, 44svh)'
 
-/* A segment plays when it is centred in the view, not when its first pixels
-   show. On a share of its own height it set off while the illustration was
-   still a strip at the bottom edge and the eye was two lines into the
-   paragraph above it.
+/* Where the square's centre is when a segment plays, as a share of the screen.
+   A little below the middle: on the middle exactly, the assembly was over by
+   the time the illustration had the eye. */
+const SEGMENT_AT = 0.6
 
-   Pulling the observer's bottom edge up to the midline and asking for half the
-   square says exactly that: half of it inside the top half of the screen puts
-   its centre on the middle of the screen. Stated that way the moment is the
-   same on every viewport and behind every length of paragraph, which a share
-   of the square's height is not.
+/* A segment plays on its centre reaching that mark, not on its first pixels
+   showing. On a share of its own height it set off while the illustration was
+   still a strip at the bottom edge and the eye was two lines into the paragraph
+   above it.
 
-   It works because the square is at most 44svh, so it always fits in the half
-   screen the observer is left with and can reach a ratio of one. Raise that cap
-   past 50svh and the trigger stops firing at all. */
-const SEGMENT_IN = { once: true, margin: '0px 0px -50% 0px', amount: 0.5 }
+   Pulling the observer's bottom edge to the mark and asking for half the square
+   says exactly that: half of it above the mark puts its centre on the mark.
+   Stated that way the moment is the same on every viewport and behind every
+   length of paragraph, which a share of the square's height is not.
+
+   It works because the square is at most 44svh, so it always fits in the screen
+   the observer is left with and can reach a ratio of one. Keep the cap under
+   twice whatever is left below, or the trigger stops firing at all. */
+const SEGMENT_IN = {
+  once: true,
+  margin: `0px 0px -${Math.round((1 - SEGMENT_AT) * 100)}% 0px`,
+  amount: 0.5,
+}
 
 /* The pinned composition only uses this to know whether it is the layout on
    duty at this width, so a share of it is exactly the right question. */
@@ -176,18 +185,20 @@ const PINNED_IN = { once: true, amount: 0.4 }
 /* The composition has two lives.
 
    In the pinned sequence it is a single composition that rearranges as `active`
-   moves through the steps. In the flowed layout there is one per step, each a
-   still, and `from` is the arrangement it plays out of when its block reaches
-   the screen: a segment therefore shows the same move the pinned version makes
-   at that boundary, rather than a frozen picture. */
-function Composition({ active, from, segment = false, reduce, className = '' }) {
+   moves through the steps. In the flowed layout there is one per step: it waits
+   as a plain horizontal line of that step's icons and assembles into the
+   arrangement when the block reaches the screen. A line rather than the previous
+   step's arrangement, so each segment reads as its own composition being built
+   instead of as a picture correcting itself. */
+function Composition({ active, segment = false, reduce, className = '' }) {
   const ref = useRef(null)
   const inView = useInView(ref, segment ? SEGMENT_IN : PINNED_IN)
   const lit = !segment || inView
+  const line = segment ? lineFrames(steps[active]) : null
 
   const entrance =
     reduce || segment
-      ? // A segment needs no entrance of its own: its icons do the arriving.
+      ? // A segment needs no entrance: the line is already what it looks like.
         {}
       : {
           initial: { opacity: 0, scale: 0.92 },
@@ -210,11 +221,11 @@ function Composition({ active, from, segment = false, reduce, className = '' }) 
           key={track.id}
           track={track}
           active={active}
-          from={segment ? from : null}
+          start={line?.get(track.id) ?? null}
           lit={lit}
           /* The drift keeps a composition alive through the minutes the pinned
              panel is on screen. A segment is scrolled past, so it would only
-             pull against the arrival. Hanging it off `inView` also means the
+             pull against the assembly. Hanging it off `inView` also means the
              layout that is display:none at this width never runs it. */
           drift={!segment && !reduce && inView}
           index={i}
@@ -305,7 +316,6 @@ function FlowStep({ step, index, reduce }) {
           column instead of stacking under the text. */}
       <Composition
         active={index}
-        from={index - 1}
         segment
         reduce={reduce}
         className="mx-auto lg:mx-0 lg:justify-self-end"
@@ -372,8 +382,8 @@ export default function Process() {
       {/* Below lg, and whenever motion is turned down, the same steps read as a
           plain sequence: each step's text, then that step's arrangement. The
           composition cannot rearrange under a paragraph the way it does beside
-          one, so it is cut into four stills, each played out of the one before
-          it as its block arrives. */}
+          one, so it is cut into four, each waiting as a line of its own icons
+          and assembling as its block arrives. */}
       <div
         className={`gutter relative z-10 mx-auto w-full max-w-[1400px] pb-24 pt-24 sm:pb-32 sm:pt-32 ${
           reduce ? '' : 'lg:hidden'
