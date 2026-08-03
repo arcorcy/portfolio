@@ -606,8 +606,14 @@ export default function Work() {
          overflow-x-clip, not hidden: a card may be pulled past the field by
          dragElastic, and clip stops that from ever reaching the document as a
          horizontal scrollbar without turning the section into a scroll container,
-         which hidden would do. relative, because the field hangs off this box. */
-      className="gutter relative flex min-h-svh flex-col justify-center overflow-x-clip py-24 lg:py-16"
+         which hidden would do. relative, because the field hangs off this box.
+
+         No justify-center: the field below is flex-1, and flex-grow claims any
+         leftover space before justify-content sees it, so centering the pair had
+         nothing left to distribute. The gap above the teaser is py-24 lg:py-16
+         doing the whole job on its own, confirmed by measuring the two against
+         each other rather than assumed. */
+      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:py-16"
     >
       <div className="relative z-10 mx-auto w-full max-w-[1400px]">
         <Teaser reduce={reduce} />

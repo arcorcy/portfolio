@@ -518,15 +518,22 @@ export default function Experience() {
             sticky element, so clipping it cannot interfere with its own pinning,
             and its box is the screen, which is exactly what the window must not
             leave. clip rather than hidden, which would make a scroll container of
-            it and break the pin outright. */}
-        <div className="gutter sticky top-0 flex h-svh flex-col justify-center overflow-x-clip">
+            it and break the pin outright.
+
+            pt-24 lg:pt-16 rather than justify-center: the field below is flex-1,
+            so flex-grow claims the whole leftover screen before justify-content
+            ever sees it, and centering the pair left the title with exactly 0px
+            above it, glued to the top edge. Measured, not assumed: gap and padding
+            came out equal. The same explicit top padding Work uses for the same
+            reason gives the title a real, deliberate gap instead. */}
+        <div className="gutter sticky top-0 flex h-svh flex-col overflow-x-clip pt-24 lg:pt-16">
           <Headline
             lines={experience.title}
             className="display-lg mx-auto w-full max-w-[1400px] text-center"
           />
 
-          {/* The room the window has, which is what the panel has left once the
-              title has had its share. A flex item below the heading rather than a
+          {/* The room the window has, which is what the panel has left below the
+              title's fixed padding. A flex item after the heading rather than a
               box pinned to the panel: the window then cannot be dragged over the
               title, with nothing measured and nothing to keep in step with a title
               that changes height. The negative margin is what lets it out of the
@@ -547,14 +554,15 @@ export default function Experience() {
               data-cursor="hover"
               /* 40rem is the height it wants, and the field minus 3rem is all it
                  can have. Taken from the field rather than from the viewport, so
-                 the title and the gap are already deducted: on a 720px laptop the
-                 window is 580px against the 528 a viewport-based cap allowed.
+                 the title and its padding are already deducted: at 1280x720 the
+                 window is 516px, 24px clear of the field on every side.
 
                  The 3rem is not spare room, it is the vertical play: at 100% the
                  window filled the field exactly and dragging it up or down did
-                 nothing, which reads as broken rather than as bounded. It costs
-                 48px on the shortest screen, where the tallest tab still has 89px
-                 of headroom inside the window. */
+                 nothing, which reads as broken rather than as bounded. Measured
+                 against the real Ublo tab, the one with a quote: 25px of headroom
+                 left at 1280x720, none to spare below about 660px of height at the
+                 1024px breakpoint, where it clips rather than scrolls. */
               className={`h-[min(40rem,calc(100%-3rem))] w-full max-w-[68rem] cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS}`}
             >
               <Frame
