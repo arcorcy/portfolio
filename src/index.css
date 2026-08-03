@@ -246,6 +246,23 @@
   transform: scaleX(1);
 }
 
+/* The native pointer goes only where the drawn one actually takes over, and the
+   three conditions are exactly the three Cursor.jsx checks before it renders:
+   1024px up, a fine pointer, and motion allowed. Outside any one of them the
+   component returns null, and hiding the native cursor there would leave a mouse
+   user with nothing on screen to aim with.
+
+   !important because Tailwind's cursor utilities are a class and would otherwise
+   outrank the universal selector. At these widths the drawn cursor is what says
+   grab or link, through data-cursor, so the native shapes have nothing to add. */
+@media (width >= 64rem) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  *,
+  *::before,
+  *::after {
+    cursor: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

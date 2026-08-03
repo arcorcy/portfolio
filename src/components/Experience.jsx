@@ -225,32 +225,50 @@ function Bar({ tab, active, onSelect }) {
 /* ------------------------------------------------------------------
    The page inside the tab
    ------------------------------------------------------------------ */
+/* Two columns from md up, one below.
+
+   The window is 1088px wide and the reading measure is 42rem, so a single column
+   left half of it empty and stacked the quote under a paragraph, which is what
+   made the page taller than the window and forced a scrollbar inside it. Side by
+   side, the tallest tab is about half as tall and the width earns its keep. */
 function Page({ tab }) {
   return (
-    <div className="mx-auto w-full max-w-[42rem] px-6 py-10 sm:px-10">
-      <div className="flex items-center gap-4">
-        <Mark tab={tab} prefer="logo" className="h-11 w-11 shrink-0 rounded-[10px]" />
-        <div className="min-w-0">
-          <h3 className="display-sm truncate">{tab.place}</h3>
-          <p className="text-base text-mute">{tab.role}</p>
+    <div
+      /* Two columns only where there is a second thing to put in one. Four of the
+         seven tabs have no quote, and a grid held open for them left half the
+         window blank; centred on its own measure it reads as a page that simply
+         does not need the width. */
+      className={`px-6 py-8 sm:px-10 ${
+        tab.quote
+          ? 'grid gap-x-12 gap-y-8 md:grid-cols-2 md:items-start'
+          : 'mx-auto max-w-[42rem]'
+      }`}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-4">
+          <Mark tab={tab} prefer="logo" className="h-11 w-11 shrink-0 rounded-[10px]" />
+          <div className="min-w-0">
+            <h3 className="display-sm truncate">{tab.place}</h3>
+            <p className="text-base text-mute">{tab.role}</p>
+          </div>
         </div>
+
+        <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-4 border-y border-line py-4 text-sm">
+          <div>
+            <dt className="text-mute">Period</dt>
+            <dd className="mt-1 font-bold">{tab.period}</dd>
+          </div>
+          <div>
+            <dt className="text-mute">Missions</dt>
+            <dd className="mt-1 font-bold">{tab.missions}</dd>
+          </div>
+        </dl>
+
+        <p className="mt-6 text-[1.0625rem] leading-[1.65] text-ink/80">{tab.description}</p>
       </div>
 
-      <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 border-y border-line py-4 text-sm">
-        <div>
-          <dt className="text-mute">Period</dt>
-          <dd className="mt-1 font-bold">{tab.period}</dd>
-        </div>
-        <div>
-          <dt className="text-mute">Missions</dt>
-          <dd className="mt-1 font-bold">{tab.missions}</dd>
-        </div>
-      </dl>
-
-      <p className="mt-8 text-[1.0625rem] leading-[1.65] text-ink/80">{tab.description}</p>
-
       {tab.quote && (
-        <figure className={`mt-8 bg-paper p-6 ${FRAME_RADIUS}`}>
+        <figure className={`min-w-0 bg-paper p-6 ${FRAME_RADIUS}`}>
           <blockquote className="text-[1.0625rem] leading-[1.65] text-ink/80">
             {tab.quote.text}
           </blockquote>
@@ -283,8 +301,12 @@ function Frame({ active, onSelect, onExpand, tip, onRefuse, onRest, expanded = f
 
       <Bar tab={tabs[active]} active={active} onSelect={onSelect} />
 
-      {/* The page scrolls inside the window, not the window inside the page. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white">
+      {/* No scrolling inside the window, and nothing to scroll to: a scroll
+          container here swallows the wheel and stalls the page, which is the one
+          thing a pinned section cannot afford. The window is sized to hold the
+          tallest tab instead, and overflow-hidden is the guarantee that a longer
+          one would be cut rather than quietly trap the wheel again. */}
+      <div className="min-h-0 flex-1 overflow-hidden bg-white">
         <Page tab={tabs[active]} />
       </div>
 
@@ -328,19 +350,19 @@ function Flat({ reduce }) {
    so those go stale and it clamps the window against them, which is what dragged
    it 50px off its own position at mount.
 
-   Offsets inside the panel have no such problem: offsetLeft and clientWidth are
-   both read from the panel's padding box, so the pair is true at any scroll
-   position. The window may cross into the gutter, the way a project card may, and
-   stops 1.5rem short of the screen. The clamps are what guarantee zero stays
-   inside the range, so nothing can snap. */
-const ROOM = 24
-
-function bounds(panel, frame) {
+   Offsets inside the field have no such problem: offsetLeft and clientWidth are
+   both read from the field's padding box, so the pair is true at any scroll
+   position. Nothing is subtracted here: the field is already the limit, bled out
+   of the gutter to 1.5rem off the screen, and it starts below the heading, so the
+   window can neither leave the screen nor cover the title. Zero is inside the
+   range by construction, since the window sits inside the field, so nothing can
+   snap. */
+function bounds(field, frame) {
   return {
-    left: Math.min(0, -frame.offsetLeft + ROOM),
-    right: Math.max(0, panel.clientWidth - frame.offsetLeft - frame.offsetWidth - ROOM),
-    top: Math.min(0, -frame.offsetTop + ROOM),
-    bottom: Math.max(0, panel.clientHeight - frame.offsetTop - frame.offsetHeight - ROOM),
+    left: -frame.offsetLeft,
+    right: field.clientWidth - frame.offsetLeft - frame.offsetWidth,
+    top: -frame.offsetTop,
+    bottom: field.clientHeight - frame.offsetTop - frame.offsetHeight,
   }
 }
 
@@ -361,7 +383,7 @@ function flip(rect) {
 export default function Experience() {
   const reduce = useReducedMotion()
   const track = useRef(null)
-  const panel = useRef(null)
+  const field = useRef(null)
   const frame = useRef(null)
   const closer = useRef(null)
   const [active, setActive] = useState(0)
@@ -420,11 +442,11 @@ export default function Experience() {
     window.scrollTo({ top: to, behavior: reduce ? 'auto' : 'smooth' })
   }
 
-  /* Measured off the panel, not the page. The observer catches the window being
-     resized by its own svh cap, the listener catches the frames the observer
-     cannot deliver in a document that is not painting. */
+  /* Measured off the field, not the page. The observer catches the field being
+     resized by the viewport, the listener catches the frames the observer cannot
+     deliver in a document that is not painting. */
   useEffect(() => {
-    const p = panel.current
+    const p = field.current
     const w = frame.current
     if (!p || !w) return undefined
 
@@ -497,40 +519,54 @@ export default function Experience() {
             and its box is the screen, which is exactly what the window must not
             leave. clip rather than hidden, which would make a scroll container of
             it and break the pin outright. */}
-        <div
-          ref={panel}
-          className="gutter sticky top-0 flex h-svh flex-col justify-center overflow-x-clip"
-        >
+        <div className="gutter sticky top-0 flex h-svh flex-col justify-center overflow-x-clip">
           <Headline
             lines={experience.title}
             className="display-lg mx-auto w-full max-w-[1400px] text-center"
           />
 
-          <motion.div
-            ref={frame}
-            /* The window is the draggable thing, so the drag lives on the wrapper
-               and the frame inside it never has to know. It roams the pinned
-               panel: the screen, not the track, which is over five screens tall. */
-            drag
-            dragConstraints={room ?? false}
-            dragElastic={0.16}
-            dragMomentum={false}
-            style={{ x: dragX, y: dragY }}
-            data-cursor="hover"
-            /* 34rem is the height it wants; the calc is the height it can have.
-               The panel owes 12rem to the title and the gap above the window, so on
-               a 720px laptop the window takes 528px and still clears it. */
-            className={`mx-auto mt-10 h-[min(34rem,calc(100svh-12rem))] w-full max-w-[68rem] cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS}`}
+          {/* The room the window has, which is what the panel has left once the
+              title has had its share. A flex item below the heading rather than a
+              box pinned to the panel: the window then cannot be dragged over the
+              title, with nothing measured and nothing to keep in step with a title
+              that changes height. The negative margin is what lets it out of the
+              gutter, landing its edges 1.5rem off the screen at any breakpoint. */}
+          <div
+            ref={field}
+            className="relative mx-[calc(1.5rem-var(--gutter))] mt-8 flex flex-1 items-center justify-center"
           >
-            <Frame
-              active={active}
-              onSelect={onSelect}
-              onExpand={onExpand}
-              tip={flow.tip}
-              onRefuse={flow.onRefuse}
-              onRest={flow.onRest}
-            />
-          </motion.div>
+            <motion.div
+              ref={frame}
+              /* The window is the draggable thing, so the drag lives on the wrapper
+                 and the frame inside it never has to know. */
+              drag
+              dragConstraints={room ?? false}
+              dragElastic={0.16}
+              dragMomentum={false}
+              style={{ x: dragX, y: dragY }}
+              data-cursor="hover"
+              /* 40rem is the height it wants, and the field minus 3rem is all it
+                 can have. Taken from the field rather than from the viewport, so
+                 the title and the gap are already deducted: on a 720px laptop the
+                 window is 580px against the 528 a viewport-based cap allowed.
+
+                 The 3rem is not spare room, it is the vertical play: at 100% the
+                 window filled the field exactly and dragging it up or down did
+                 nothing, which reads as broken rather than as bounded. It costs
+                 48px on the shortest screen, where the tallest tab still has 89px
+                 of headroom inside the window. */
+              className={`h-[min(40rem,calc(100%-3rem))] w-full max-w-[68rem] cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS}`}
+            >
+              <Frame
+                active={active}
+                onSelect={onSelect}
+                onExpand={onExpand}
+                tip={flow.tip}
+                onRefuse={flow.onRefuse}
+                onRest={flow.onRest}
+              />
+            </motion.div>
+          </div>
         </div>
       </div>
 

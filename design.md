@@ -98,6 +98,8 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 | Curseur custom | desktop uniquement | `mix-blend-difference`, grossit sur `[data-cursor]` |
 | Grain | global | overlay SVG animé, opacité 0.038 |
 
+Au-dessus de 1024px, sur pointeur fin et hors reduced-motion, le curseur natif est masqué et le curseur dessiné le remplace. En dessous d'une seule de ces conditions il revient, parce que le curseur dessiné ne s'affiche pas.
+
 Toutes les animations tombent à zéro sous `prefers-reduced-motion: reduce` : les decks et la constellation perdent le drag et se placent en dur, et How I work abandonne l'épinglage pour une suite de paragraphes.
 
 ## Dégradation mobile

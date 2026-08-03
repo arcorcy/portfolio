@@ -609,37 +609,44 @@ export default function Work() {
          which hidden would do. relative, because the field hangs off this box. */
       className="gutter relative flex min-h-svh flex-col justify-center overflow-x-clip py-24 lg:py-16"
     >
+      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
+        <Teaser reduce={reduce} />
+      </div>
+
       {/* How far a card may travel, which is no longer where it lives.
 
-          The stage is the arrangement: it stays inside the gutter and the card
-          positions are percentages of it. The field is the room, and it is the
-          section itself, so a card can be carried out over the margin and up to
-          the edge of the screen but no further, and never out of the section.
+          The stage is the arrangement: the card positions are percentages of it.
+          The field is the room, and it takes what the section has left once the
+          title has had its share, so a card can be carried out over the margin to
+          the edge of the screen but never over the heading. That is why it is a
+          flex item below the title rather than a box pinned to the section: no
+          measuring, and it cannot fall out of step with a title that changes
+          height.
 
-          Inset by 2.75rem, because the drag box is not what the eye sees: the
-          card is rotated and, while pointed at, scaled. Measured against the real
-          data at the 1400px the stage caps at, the corner of the widest card
-          passes its own box by 28px at rest after a throw, by 40px while it is
-          also being pointed at, and by 58px at the peak of the lean mid-throw.
-          2.75rem clears the first two, which are the states a card sits in.
+          The negative margin is what lets it out of the gutter: 2.75rem minus the
+          gutter, so its edges land 2.75rem off the screen whatever the breakpoint
+          has made the gutter.
+
+          2.75rem, because the drag box is not what the eye sees: the card is
+          rotated and, while pointed at, scaled. Measured against the real data at
+          the 1400px the stage caps at, the corner of the widest card passes its own
+          box by 28px at rest after a throw, by 40px while it is also being pointed
+          at, and by 58px at the peak of the lean mid-throw. 2.75rem clears the
+          first two, which are the states a card sits in.
 
           The third is what overflow-x-clip on the section is for, along with the
           overshoot dragElastic allows: both are transient, and the point of the
           clip is only that neither can ever reach the document as a scrollbar. */}
-      <div ref={field} aria-hidden="true" className="pointer-events-none absolute inset-11" />
-
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Teaser reduce={reduce} />
-
+      <div
+        ref={field}
+        className="relative z-10 mx-[calc(2.75rem-var(--gutter))] mt-6 hidden flex-1 items-center justify-center lg:flex"
+      >
         {/* The stage. A fixed ratio, capped so the whole constellation always
             fits one screen: the positions in the data are percentages of this
             box, so they hold their arrangement at any size. */}
         <div
           ref={stage}
-          // mt-6 rather than mt-10: with the title, the padding and a stage
-          // capped at 124svh, the extra 16px was what pushed the section past
-          // one screen on a 720px viewport.
-          className="relative mx-auto mt-6 hidden aspect-[16/9] w-full max-w-[124svh] lg:block"
+          className="relative aspect-[16/9] w-full max-w-[min(124svh,1400px)]"
         >
           {projects.map((project, i) => (
             <Card
@@ -657,10 +664,14 @@ export default function Work() {
             />
           ))}
         </div>
+      </div>
 
-        {/* The margin lives on the strip itself, not on a wrapper: a wrapper
-            keeps its margin on a wide screen even once its content is hidden,
-            and the section stopped fitting one viewport by exactly that much. */}
+      {/* Outside the field, which is hidden below lg: the strip is the only thing
+          on screen at those widths. The margin lives on the strip itself, not on a
+          wrapper, since a wrapper keeps its margin on a wide screen even once its
+          content is hidden, and the section stopped fitting one viewport by
+          exactly that much. */}
+      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
         <Strip onOpen={open} />
       </div>
 
