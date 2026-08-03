@@ -273,7 +273,7 @@ function Copy({ project, className = '' }) {
    stays outside the drift, float and hover layers: text that bobs and
    scales is text nobody reads.
    ------------------------------------------------------------------ */
-function Card({ project, index, stage, progress, active, dim, onEnter, onLeave, onOpen, reduce }) {
+function Card({ project, index, field, progress, active, dim, onEnter, onLeave, onOpen, reduce }) {
   const ref = useRef(null)
   /* The innermost layer is the one to measure: the drag layer's box is the
      card's untransformed footprint, while the rotation and the drift live on
@@ -329,16 +329,16 @@ function Card({ project, index, stage, progress, active, dim, onEnter, onLeave, 
   // A dip through the middle of the crossing, where the copy passes the card.
   const crossing = useTransform(flip, [0, 0.5, 1], [1, 0.45, 1])
 
-  /* Which side the copy sits on is decided against the middle of the stage,
-     and rechecked while the card is dragged: carry a left card over to the
-     right and its copy moves round rather than running off the edge. Measured
-     once per drag, not once per frame. */
+  /* Which side the copy sits on is decided against the middle of the field, and
+     rechecked while the card is dragged: carry a left card over to the right and
+     its copy moves round rather than running off the edge. Measured once per
+     drag, not once per frame. */
   function onDragStart() {
     setHeld(true)
     dragged.current = true
-    if (!ref.current || !stage.current) return
+    if (!ref.current || !field.current) return
     const card = ref.current.getBoundingClientRect()
-    const box = stage.current.getBoundingClientRect()
+    const box = field.current.getBoundingClientRect()
     geometry.current = { centre: card.left + card.width / 2, middle: box.left + box.width / 2 }
   }
 
@@ -363,9 +363,9 @@ function Card({ project, index, stage, progress, active, dim, onEnter, onLeave, 
      side. Measured again once the glide has settled. */
   function onDragTransitionEnd() {
     setHeld(false)
-    if (!ref.current || !stage.current) return
+    if (!ref.current || !field.current) return
     const card = ref.current.getBoundingClientRect()
-    const box = stage.current.getBoundingClientRect()
+    const box = field.current.getBoundingClientRect()
     pick(card.left + card.width / 2 <= box.left + box.width / 2 ? 'right' : 'left')
   }
 
@@ -387,11 +387,13 @@ function Card({ project, index, stage, progress, active, dim, onEnter, onLeave, 
         x: dragX,
         y: dragY,
       }}
-      // dragConstraints on the stage is the guarantee, momentum included: throw
-      // a card and it carries, then settles back inside rather than being lost
-      // off screen.
+      /* dragConstraints on the field is the guarantee, momentum included: throw a
+         card and it carries, then settles back inside rather than being lost off
+         screen. The field is not the card's containing block, which is the stage,
+         and does not need to be: Framer measures the page box of whatever ref it
+         is given and compares it with the card's own. */
       drag={!reduce}
-      dragConstraints={stage}
+      dragConstraints={field}
       dragElastic={0.16}
       dragMomentum={!reduce}
       dragTransition={THROW}
@@ -547,7 +549,9 @@ function Strip({ onOpen }) {
 export default function Work() {
   const reduce = useReducedMotion()
   const section = useRef(null)
+  // Where the cards live, and how far they may go. Two different boxes.
   const stage = useRef(null)
+  const field = useRef(null)
   const [hovered, setHovered] = useState(null)
   // The rect the surface grows from is captured at the click, not recomputed:
   // it is where the card was when it was pressed.
@@ -596,10 +600,34 @@ export default function Work() {
     <section
       id="work"
       ref={section}
-      // The gap before the dark section lives on the Mesh wrapper, not here: the
-      // grid has to cover it, and a margin would fall outside the wrapper.
-      className="gutter flex min-h-svh flex-col justify-center py-24 lg:py-16"
+      /* The gap before the dark section lives on the Mesh wrapper, not here: the
+         grid has to cover it, and a margin would fall outside the wrapper.
+
+         overflow-x-clip, not hidden: a card may be pulled past the field by
+         dragElastic, and clip stops that from ever reaching the document as a
+         horizontal scrollbar without turning the section into a scroll container,
+         which hidden would do. relative, because the field hangs off this box. */
+      className="gutter relative flex min-h-svh flex-col justify-center overflow-x-clip py-24 lg:py-16"
     >
+      {/* How far a card may travel, which is no longer where it lives.
+
+          The stage is the arrangement: it stays inside the gutter and the card
+          positions are percentages of it. The field is the room, and it is the
+          section itself, so a card can be carried out over the margin and up to
+          the edge of the screen but no further, and never out of the section.
+
+          Inset by 2.75rem, because the drag box is not what the eye sees: the
+          card is rotated and, while pointed at, scaled. Measured against the real
+          data at the 1400px the stage caps at, the corner of the widest card
+          passes its own box by 28px at rest after a throw, by 40px while it is
+          also being pointed at, and by 58px at the peak of the lean mid-throw.
+          2.75rem clears the first two, which are the states a card sits in.
+
+          The third is what overflow-x-clip on the section is for, along with the
+          overshoot dragElastic allows: both are transient, and the point of the
+          clip is only that neither can ever reach the document as a scrollbar. */}
+      <div ref={field} aria-hidden="true" className="pointer-events-none absolute inset-11" />
+
       <div className="relative z-10 mx-auto w-full max-w-[1400px]">
         <Teaser reduce={reduce} />
 
@@ -618,7 +646,7 @@ export default function Work() {
               key={project.id}
               project={project}
               index={i}
-              stage={stage}
+              field={field}
               progress={scrollYProgress}
               active={hovered === project.id}
               dim={hovered !== null && hovered !== project.id}
