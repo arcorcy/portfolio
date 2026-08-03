@@ -7,10 +7,13 @@
  *   role        : job title, or the diploma for a school.
  *   period      : as it should read on screen. `20XX` marks a placeholder.
  *   missions    : the kind of work, in a few words.
- *   url         : what the address bar shows. null until the real one lands, and
- *                 the bar then says so rather than inventing a domain.
- *   logo        : a slot for the mark, used as the tab's favicon. null draws the
- *                 placeholder tile.
+ *   url         : what the address bar shows, and where the site actually is.
+ *   favicon     : the site's own icon, fetched from it and served from here so no
+ *                 page load reaches out to anyone. null where the site has none:
+ *                 École Estienne declares no icon and every usual path 404s.
+ *   logo        : a slot for the real mark, still to come. The tab always shows
+ *                 the favicon; the page shows the logo where there is one and
+ *                 falls back to the favicon, then to the placeholder tile.
  *   description : the experience in Arthur's own words.
  *   quote       : the testimonial for that experience, or null. It lives in the
  *                 tab rather than in a deck of its own, so the words and the job
@@ -40,8 +43,9 @@ export const experience = {
       role: 'Licence Design Numérique - Interfaces',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.ecole-estienne.paris/',
       logo: null,
+      favicon: null,
       description: PLACEHOLDER_DESCRIPTION,
       quote: null,
     },
@@ -51,8 +55,9 @@ export const experience = {
       role: 'Master Product Design',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.lisaa.com/fr/ecole/arts-appliques-graphisme-paris',
       logo: null,
+      favicon: '/favicons/lisaa.ico',
       description: PLACEHOLDER_DESCRIPTION,
       quote: null,
     },
@@ -62,8 +67,9 @@ export const experience = {
       role: 'UI Designer Freelance',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.outsight.studio/',
       logo: null,
+      favicon: '/favicons/outsight.png',
       description: PLACEHOLDER_DESCRIPTION,
       quote: null,
     },
@@ -73,8 +79,9 @@ export const experience = {
       role: 'Product Designer',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.wolfox.studio/',
       logo: null,
+      favicon: '/favicons/wolfox.png',
       description: PLACEHOLDER_DESCRIPTION,
       quote: null,
     },
@@ -84,8 +91,9 @@ export const experience = {
       role: 'Consultant Product designer',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.ublo.immo/',
       logo: null,
+      favicon: '/favicons/ublo.png',
       description: PLACEHOLDER_DESCRIPTION,
       /* The only real quote on the site. Kept exactly as it was said, spelling
          and all: it is not Arthur's to tidy. Still to be sourced, and the client
@@ -101,8 +109,9 @@ export const experience = {
       role: 'AI Product Designer',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://agence.mantu.com/',
       logo: null,
+      favicon: '/favicons/mantu.png',
       description: PLACEHOLDER_DESCRIPTION,
       quote: {
         text: 'Placeholder quote. Replace with what they actually said: the raw sentence beats a polished summary.',
@@ -115,8 +124,9 @@ export const experience = {
       role: 'Consultant Product designer',
       period: PLACEHOLDER_PERIOD,
       missions: PLACEHOLDER_MISSIONS,
-      url: null,
+      url: 'https://www.cevalogistics.com/fr',
       logo: null,
+      favicon: '/favicons/ceva.ico',
       description: PLACEHOLDER_DESCRIPTION,
       quote: {
         text: 'Placeholder quote. Replace with what they actually said: the raw sentence beats a polished summary.',

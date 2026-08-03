@@ -78,6 +78,8 @@ Cards blanches : `border border-line` (parcours, One more thing). Les cartes pos
 
 Quatre passe-partout de projet, un par projet, uniquement derrière une couverture dans Works : `--color-mat-pink` `#f3cbf2`, `--color-mat-orange` `#ff9338`, `--color-mat-blue` `#a8dcf2`, `--color-mat-sand` `#d9dbd0`. Ce ne sont pas des accents et ils ne concurrencent pas le lime.
 
+`--color-paper-deep` `#d9d7cc` : le papier descendu jusqu'à se lire comme éteint. Un seul usage, les deux boutons de la fenêtre Experience qui refusent d'agir. Ils sont posés sur du papier, donc la même couleur en plus foncé dit désactivé là où un gris neutre aurait dit autre matière.
+
 ## Motion
 
 Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.

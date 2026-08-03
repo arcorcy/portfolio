@@ -13,6 +13,10 @@
   --color-line: #e7e7e7;
   --color-lime: #c8ff5e;
   --color-dim: #d9d9e5;
+  /* Paper, taken down until it reads as switched off. For the two window buttons
+     that refuse: they sit on paper, so being the same colour a shade deeper says
+     disabled without a grey that would look like a different material. */
+  --color-paper-deep: #d9d7cc;
 
   /* Grid lines. One neutral grey, deliberately: mid grey over the near-white
      paper reads as a pale line and the same grey over the near-black section

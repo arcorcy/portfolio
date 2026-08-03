@@ -27,15 +27,21 @@ const EDGE = 8
 /* ------------------------------------------------------------------
    The window buttons. One of the three works.
    ------------------------------------------------------------------ */
+/* The one that works is the one with colour: the lime, as everywhere else on the
+   site. The two that refuse are paper a shade deeper, so they read as switched
+   off rather than as a different kind of button. */
 const DOTS = [
-  { id: 'close', label: 'Close the window', className: 'bg-[#ff5f57]' },
-  { id: 'minimize', label: 'Minimize the window', className: 'bg-[#febc2e]' },
-  { id: 'expand', label: 'Open the window full screen', className: 'bg-[#28c840]' },
+  { id: 'close', label: 'Close the window', className: 'bg-paper-deep' },
+  { id: 'minimize', label: 'Minimize the window', className: 'bg-paper-deep' },
+  { id: 'expand', label: 'Open the window full screen', className: 'bg-lime' },
 ]
 
 function Dots({ onExpand, onRefuse, onRest }) {
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    /* self-center, not the row's items-end: the tabs are flush with the bottom of
+       the strip, the way a browser's are, and the dots sitting on that same line
+       ended up straddling the address bar's border. */
+    <div className="flex shrink-0 items-center gap-2 self-center">
       {DOTS.map((dot) => {
         const works = dot.id === 'expand'
 
@@ -53,7 +59,7 @@ function Dots({ onExpand, onRefuse, onRest }) {
             onFocus={works ? undefined : onRefuse}
             onMouseLeave={works ? undefined : onRest}
             onBlur={works ? undefined : onRest}
-            className={`h-3 w-3 rounded-full transition-transform duration-300 hover:scale-110 ${dot.className}`}
+            className={`h-3.5 w-3.5 rounded-full transition-transform duration-300 hover:scale-110 ${dot.className}`}
           />
         )
       })}
@@ -106,9 +112,13 @@ function useRefusalTip() {
 /* ------------------------------------------------------------------
    Chrome
    ------------------------------------------------------------------ */
-function Favicon({ tab, className = '' }) {
-  if (!tab.logo) return <Placeholder seed={tabs.indexOf(tab)} className={className} />
-  return <img src={tab.logo} alt="" className={`${className} object-contain`} />
+/* The tab always shows the site's own icon. The page prefers the real mark once
+   there is one, since a 16px favicon blown up to 44px is a soft square. Either
+   way, no mark means the placeholder tile rather than a hole. */
+function Mark({ tab, prefer = 'favicon', className = '' }) {
+  const src = prefer === 'logo' ? (tab.logo ?? tab.favicon) : tab.favicon
+  if (!src) return <Placeholder seed={tabs.indexOf(tab)} className={className} />
+  return <img src={src} alt="" className={`${className} object-contain`} />
 }
 
 function Tabs({ active, onSelect }) {
@@ -129,7 +139,7 @@ function Tabs({ active, onSelect }) {
             i === active ? 'bg-white text-ink' : 'text-mute hover:text-ink'
           }`}
         >
-          <Favicon tab={tab} className="h-4 w-4 shrink-0 rounded-[3px]" />
+          <Mark tab={tab} className="h-4 w-4 shrink-0 rounded-[3px]" />
           <span className="whitespace-nowrap">{tab.place}</span>
         </button>
       ))}
@@ -155,7 +165,7 @@ function Page({ tab }) {
   return (
     <div className="mx-auto w-full max-w-[42rem] px-6 py-10 sm:px-10">
       <div className="flex items-center gap-4">
-        <Favicon tab={tab} className="h-11 w-11 shrink-0 rounded-[10px]" />
+        <Mark tab={tab} prefer="logo" className="h-11 w-11 shrink-0 rounded-[10px]" />
         <div className="min-w-0">
           <h3 className="display-sm truncate">{tab.place}</h3>
           <p className="text-base text-mute">{tab.role}</p>
