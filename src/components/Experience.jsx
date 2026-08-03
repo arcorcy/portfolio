@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion'
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+} from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
+import { stepAt } from '../lib/sequence.js'
 import { experience } from '../data/experience.js'
 import Placeholder from './Placeholder.jsx'
 
@@ -11,6 +19,11 @@ const { tabs, refusal } = experience
    a card does, and it is the same halving the case study cover uses. */
 const FRAME_RADIUS = 'rounded-[calc(var(--radius-shot)/2)]'
 
+/* Scroll length of one tab, in percent of the viewport height. 60svh puts a tab
+   change roughly five wheel notches apart on a 900px screen: deliberate rather
+   than twitchy, and the same pitch the seven-entry section it replaces used. */
+const PER_TAB = 60
+
 /* Full screen borrows the case studies' timing exactly, since it is the same
    move: the surface grows first and the content arrives once it has stopped. */
 const GROW = { duration: 0.55, ease: EASE }
@@ -19,17 +32,19 @@ const SHUT = { duration: 0.12 }
 
 /* The refusal tip is placed from the button's own box rather than guessed at.
    TIP_HEIGHT is not a guess either: it is this tip's own box, one line of text-sm
-   at 20px on 2 x 0.5rem of padding. EDGE is what it keeps off the viewport. */
+   at 20px on 2 x 0.5rem of padding, measured at 34px. EDGE is what it keeps off
+   the viewport. */
 const TIP_HEIGHT = 36
 const TIP_GAP = 12
 const EDGE = 8
 
 /* ------------------------------------------------------------------
    The window buttons. One of the three works.
-   ------------------------------------------------------------------ */
-/* The one that works is the one with colour: the lime, as everywhere else on the
+
+   The one that works is the one with colour: the lime, as everywhere else on the
    site. The two that refuse are paper a shade deeper, so they read as switched
-   off rather than as a different kind of button. */
+   off rather than as a different kind of button.
+   ------------------------------------------------------------------ */
 const DOTS = [
   { id: 'close', label: 'Close the window', className: 'bg-paper-deep' },
   { id: 'minimize', label: 'Minimize the window', className: 'bg-paper-deep' },
@@ -112,6 +127,7 @@ function useRefusalTip() {
 /* ------------------------------------------------------------------
    Chrome
    ------------------------------------------------------------------ */
+
 /* The tab always shows the site's own icon. The page prefers the real mark once
    there is one, since a 16px favicon blown up to 44px is a soft square. Either
    way, no mark means the placeholder tile rather than a hole. */
@@ -123,11 +139,10 @@ function Mark({ tab, prefer = 'favicon', className = '' }) {
 
 function Tabs({ active, onSelect }) {
   return (
-    <div
-      /* The strip scrolls rather than shrinking the tabs: seven labels of
-         different lengths cannot all be squeezed and stay readable. */
-      className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
+    /* The strip does not scroll: the tabs share the width and their labels are cut
+       instead, which is what a browser does. min-w-0 on the button is what lets
+       flex shrink it past its text, and on the label is what lets truncate bite. */
+    <div className="flex min-w-0 flex-1 gap-1">
       {tabs.map((tab, i) => (
         <button
           key={tab.id}
@@ -135,22 +150,71 @@ function Tabs({ active, onSelect }) {
           onClick={() => onSelect(i)}
           aria-current={i === active ? 'page' : undefined}
           data-cursor="link"
-          className={`flex shrink-0 items-center gap-2 rounded-t-[10px] px-3 py-2 text-sm transition-colors duration-300 ${
+          title={tab.place}
+          className={`flex min-w-0 flex-1 items-center gap-2 rounded-t-[10px] px-3 py-2 text-sm transition-colors duration-300 ${
             i === active ? 'bg-white text-ink' : 'text-mute hover:text-ink'
           }`}
         >
           <Mark tab={tab} className="h-4 w-4 shrink-0 rounded-[3px]" />
-          <span className="whitespace-nowrap">{tab.place}</span>
+          <span className="min-w-0 truncate">{tab.place}</span>
         </button>
       ))}
     </div>
   )
 }
 
-function Bar({ tab }) {
+function Chevron({ dir }) {
   return (
-    <div className="flex items-center gap-3 border-b border-line bg-white px-4 py-3">
-      <span className="h-2 w-2 shrink-0 rounded-full bg-line" aria-hidden="true" />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d={dir === 'prev' ? 'M10 3.5L5.5 8l4.5 4.5' : 'M6 3.5L10.5 8 6 12.5'}
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/* The two arrows a browser puts left of its address bar. Here they step the tab
+   rather than the history, and they grey out at the ends the way back does with
+   nothing behind it. */
+function Steps({ active, onSelect }) {
+  const moves = [
+    { dir: 'prev', to: active - 1, label: 'Previous experience' },
+    { dir: 'next', to: active + 1, label: 'Next experience' },
+  ]
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {moves.map((move) => {
+        const dead = move.to < 0 || move.to > tabs.length - 1
+
+        return (
+          <button
+            key={move.dir}
+            type="button"
+            onClick={() => onSelect(move.to)}
+            disabled={dead}
+            aria-label={move.label}
+            data-cursor={dead ? 'hover' : 'link'}
+            className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-300 ${
+              dead ? 'text-paper-deep' : 'text-mute hover:bg-paper hover:text-ink'
+            }`}
+          >
+            <Chevron dir={move.dir} />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Bar({ tab, active, onSelect }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-line bg-white px-3 py-2">
+      <Steps active={active} onSelect={onSelect} />
       <p className="truncate text-sm text-mute">
         {tab.url ?? <span className="italic">url to fill in</span>}
       </p>
@@ -217,7 +281,7 @@ function Frame({ active, onSelect, onExpand, tip, onRefuse, onRest, expanded = f
         <Tabs active={active} onSelect={onSelect} />
       </div>
 
-      <Bar tab={tabs[active]} />
+      <Bar tab={tabs[active]} active={active} onSelect={onSelect} />
 
       {/* The page scrolls inside the window, not the window inside the page. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white">
@@ -230,22 +294,54 @@ function Frame({ active, onSelect, onExpand, tip, onRefuse, onRest, expanded = f
 }
 
 /* ------------------------------------------------------------------
-   Below lg: no chrome at all, just the experiences in order.
+   Below lg, and whenever motion is turned down: no chrome at all, just the
+   experiences in order.
 
    A browser window is a desktop object: the tabs, the address bar and the drag
    all need room a phone does not have, and squeezed into 350px the joke stops
-   being one. The content is the same, read straight down.
+   being one. Pinning it would be worse still, since the whole point of the pin is
+   that a tab changes under a pointer that is not going anywhere.
    ------------------------------------------------------------------ */
-function Flat() {
+function Flat({ reduce }) {
   return (
-    <div className="relative z-10 mt-14 lg:hidden">
-      {tabs.map((tab, i) => (
-        <article key={tab.id} className={i ? 'mt-14' : ''}>
+    <div
+      className={`gutter relative z-10 mx-auto w-full max-w-[1400px] py-24 sm:py-32 ${
+        reduce ? '' : 'lg:hidden'
+      }`}
+    >
+      <Headline lines={experience.title} className="display-lg text-center" />
+
+      {tabs.map((tab) => (
+        <article key={tab.id} className="mt-14">
           <Page tab={tab} />
         </article>
       ))}
     </div>
   )
+}
+
+/* How far the window may be carried, as pixel offsets from where it sits.
+
+   An object and not a ref, unlike everywhere else in this codebase, because the
+   box it must stay inside is `sticky`. Given a ref, Framer resolves constraints
+   against page boxes measured once; a sticky panel's page box moves as it pins,
+   so those go stale and it clamps the window against them, which is what dragged
+   it 50px off its own position at mount.
+
+   Offsets inside the panel have no such problem: offsetLeft and clientWidth are
+   both read from the panel's padding box, so the pair is true at any scroll
+   position. The window may cross into the gutter, the way a project card may, and
+   stops 1.5rem short of the screen. The clamps are what guarantee zero stays
+   inside the range, so nothing can snap. */
+const ROOM = 24
+
+function bounds(panel, frame) {
+  return {
+    left: Math.min(0, -frame.offsetLeft + ROOM),
+    right: Math.max(0, panel.clientWidth - frame.offsetLeft - frame.offsetWidth - ROOM),
+    top: Math.min(0, -frame.offsetTop + ROOM),
+    bottom: Math.max(0, panel.clientHeight - frame.offsetTop - frame.offsetHeight - ROOM),
+  }
 }
 
 /* Where the surface grows from, as the transform that puts a full screen box back
@@ -264,24 +360,86 @@ function flip(rect) {
 /* ------------------------------------------------------------------ */
 export default function Experience() {
   const reduce = useReducedMotion()
-  const field = useRef(null)
+  const track = useRef(null)
+  const panel = useRef(null)
   const frame = useRef(null)
   const closer = useRef(null)
   const [active, setActive] = useState(0)
-  /* The drag writes into values of our own rather than ones Framer keeps to
-     itself. Not a preference: given a ref for its constraints, Framer resolves
-     them against the page and, without external values to rebase onto, it read
-     the window as out of bounds and snapped it 154px up onto the field's top edge
-     the moment it mounted. The project cards were already doing this. */
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
   // The rect is caught at the click, not recomputed: it is where the window was
   // when it was opened, drag included.
   const [from, setFrom] = useState(null)
+  /* Not a preference: given a ref for its constraints Framer resolves them against
+     the page, and without external values to rebase onto it read the window as out
+     of bounds and snapped it onto the field's top edge at mount, over the title.
+     The project cards were already doing this. */
+  const dragX = useMotionValue(0)
+  const dragY = useMotionValue(0)
+  const [room, setRoom] = useState(null)
   const flow = useRefusalTip()
   const full = useRefusalTip()
 
   const expanded = from !== null
+
+  /* The scroll owns which tab is up, and nothing else writes it while the section
+     is on screen. That is the whole reason a click has to scroll rather than set:
+     an active tab held as its own state would be overwritten by the next frame. */
+  const { scrollYProgress } = useScroll({
+    target: track,
+    offset: ['start start', 'end end'],
+  })
+
+  useMotionValueEvent(scrollYProgress, 'change', (p) => {
+    if (!expanded) setActive(stepAt(p, tabs.length))
+  })
+
+  /* Read on the way out of full screen, where the page has been locked and the
+     scroll no longer agrees with the tab that is up. A ref because the release
+     happens in an effect teardown, which would otherwise close over a stale one. */
+  const shown = useRef(0)
+  shown.current = active
+
+  /* The scroll position that puts tab i up: the middle of its own band. stepAt
+     leads by 12% of a band, and half a band is well clear of that, so the middle
+     lands on i and not on its neighbour. */
+  function bandTop(i) {
+    const el = track.current
+    if (!el) return null
+    const run = el.offsetHeight - window.innerHeight
+    const top = el.getBoundingClientRect().top + window.scrollY
+    return top + ((i + 0.5) / tabs.length) * run
+  }
+
+  function onSelect(i) {
+    if (i < 0 || i > tabs.length - 1) return
+    if (expanded) {
+      setActive(i)
+      return
+    }
+    const to = bandTop(i)
+    if (to === null) return
+    window.scrollTo({ top: to, behavior: reduce ? 'auto' : 'smooth' })
+  }
+
+  /* Measured off the panel, not the page. The observer catches the window being
+     resized by its own svh cap, the listener catches the frames the observer
+     cannot deliver in a document that is not painting. */
+  useEffect(() => {
+    const p = panel.current
+    const w = frame.current
+    if (!p || !w) return undefined
+
+    const measure = () => setRoom(bounds(p, w))
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(p)
+    window.addEventListener('resize', measure)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
 
   /* Held here rather than in the overlay, and keyed on intent: AnimatePresence
      keeps the overlay mounted until its exit finishes, so an exit interrupted
@@ -302,6 +460,11 @@ export default function Experience() {
       html.style.overflow = wasOverflow
       html.style.paddingRight = wasPadding
       root?.removeAttribute('inert')
+
+      /* Put the page where the tab that is up belongs, or the first scroll after
+         coming back would snap to whichever tab the old position pointed at. */
+      const to = bandTop(shown.current)
+      if (to !== null) window.scrollTo({ top: to, behavior: 'auto' })
     }
   }, [expanded])
 
@@ -321,50 +484,57 @@ export default function Experience() {
   }
 
   return (
-    <section
-      id="experience"
-      /* overflow-x-clip for the same reason as Works: dragElastic lets the window
-         be pulled past the field, and clip keeps that from ever reaching the
-         document as a scrollbar without making a scroll container of the section.
-         relative, because the field hangs off this box. */
-      className="gutter relative flex min-h-svh flex-col justify-center overflow-x-clip py-24 lg:py-16"
-    >
-      {/* How far the window may be carried: the section, kept off its own edge.
-          No rotation on this one, unlike the project cards, so the box the drag
-          constrains is the box the eye sees and 1.5rem is only breathing room. */}
-      <div ref={field} aria-hidden="true" className="pointer-events-none absolute inset-6" />
+    <section id="experience" className="relative">
+      {/* The pinned run. One screen of height beyond the tabs themselves: that is
+          the screen the panel spends in view before it starts pinning. */}
+      <div
+        ref={track}
+        style={{ height: `calc(100svh + ${tabs.length * PER_TAB}svh)` }}
+        className={reduce ? 'hidden' : 'hidden lg:block'}
+      >
+        {/* overflow-x-clip on the panel and not on the section: the panel is the
+            sticky element, so clipping it cannot interfere with its own pinning,
+            and its box is the screen, which is exactly what the window must not
+            leave. clip rather than hidden, which would make a scroll container of
+            it and break the pin outright. */}
+        <div
+          ref={panel}
+          className="gutter sticky top-0 flex h-svh flex-col justify-center overflow-x-clip"
+        >
+          <Headline
+            lines={experience.title}
+            className="display-lg mx-auto w-full max-w-[1400px] text-center"
+          />
 
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Headline lines={experience.title} className="display-lg text-center" />
+          <motion.div
+            ref={frame}
+            /* The window is the draggable thing, so the drag lives on the wrapper
+               and the frame inside it never has to know. It roams the pinned
+               panel: the screen, not the track, which is over five screens tall. */
+            drag
+            dragConstraints={room ?? false}
+            dragElastic={0.16}
+            dragMomentum={false}
+            style={{ x: dragX, y: dragY }}
+            data-cursor="hover"
+            /* 34rem is the height it wants; the calc is the height it can have.
+               The panel owes 12rem to the title and the gap above the window, so on
+               a 720px laptop the window takes 528px and still clears it. */
+            className={`mx-auto mt-10 h-[min(34rem,calc(100svh-12rem))] w-full max-w-[68rem] cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS}`}
+          >
+            <Frame
+              active={active}
+              onSelect={onSelect}
+              onExpand={onExpand}
+              tip={flow.tip}
+              onRefuse={flow.onRefuse}
+              onRest={flow.onRest}
+            />
+          </motion.div>
+        </div>
       </div>
 
-      <motion.div
-        ref={frame}
-        /* The window is the draggable thing, so the drag lives on the wrapper and
-           the frame inside it never has to know. */
-        drag={!reduce}
-        dragConstraints={field}
-        dragElastic={0.16}
-        dragMomentum={false}
-        style={{ x: dragX, y: dragY }}
-        data-cursor="hover"
-        /* 34rem is the height it wants; the calc is the height it can have. The
-           section owes 16rem to everything above the window, 8rem of padding top
-           and bottom at lg plus the title and the gap, so on a 720px laptop the
-           window takes 464px and the section still fits one screen. */
-        className={`relative z-10 mx-auto mt-10 hidden h-[min(34rem,calc(100svh-16rem))] w-full max-w-[68rem] cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing lg:block ${FRAME_RADIUS}`}
-      >
-        <Frame
-          active={active}
-          onSelect={setActive}
-          onExpand={onExpand}
-          tip={flow.tip}
-          onRefuse={flow.onRefuse}
-          onRest={flow.onRest}
-        />
-      </motion.div>
-
-      <Flat />
+      <Flat reduce={reduce} />
 
       {createPortal(
         <AnimatePresence>
@@ -389,7 +559,7 @@ export default function Experience() {
                 <Frame
                   expanded
                   active={active}
-                  onSelect={setActive}
+                  onSelect={onSelect}
                   onExpand={undefined}
                   tip={full.tip}
                   onRefuse={full.onRefuse}
