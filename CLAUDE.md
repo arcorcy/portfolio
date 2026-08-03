@@ -95,9 +95,9 @@ Conventions : composants en PascalCase avec export default, extension `.jsx`, im
 
 ## À faire (état au 30/07/2026)
 
-- Remplacer les 3 projets placeholder dans `src/data/projects.js` et fournir les couvertures (le vrai projet Figma Plugin n'a pas encore de visuel). Sans `cover`, les cartes affichent la tuile grise de `Placeholder.jsx`.
+- `src/data/projects.js` : les trois premiers projets ont leur couverture, le quatrième n'a rien et affiche donc la tuile grise de `Placeholder.jsx`. Les copies des projets 2 et 3 sont des placeholders assumés, titre et sous-titre compris, et leurs études passent par `placeholderStudy()` : supprimer l'appel, pas le texte, quand la vraie copie arrive.
 - Les **4 témoignages** de `src/data/testimonials.js` sont tous à confirmer, y compris les deux entreprises nommées : aucune citation n'est sourcée.
-- Le clic sur une carte projet ne fait rien : les pages de cas d'étude n'existent pas encore.
+- Trois cartes sur quatre ouvrent une étude, le quatrième projet n'en a pas et n'est donc pas cliquable (`data-cursor="hover"` au lieu de `link`). C'est la présence de `study` qui décide des deux, il n'y a rien d'autre à brancher.
 - Remplir « One more thing » ou supprimer la section.
 - Relire `story.paragraphs` dans `content.js` : le texte est repris tel quel de la maquette et contient des coquilles (« in digital world », « I wana »).
 - Faire vérifier les intitulés de poste, périodes et diplômes dans `content.js` (reconstitués, non sourcés).

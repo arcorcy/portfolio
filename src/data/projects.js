@@ -32,8 +32,43 @@
    not run, which is what the slot is for while a screenshot is still coming. */
 const variableGenerator = '/covers/variable-generator.png'
 
-// Second project. Copy still to come, so the card carries a placeholder sentence.
+// Copy still to come for these two, so their cards carry a placeholder sentence.
 const emeis = '/covers/emeis.png'
+const ceva = '/covers/ceva.png'
+
+/* A study that exists so the card opens and the page can be judged before the
+   writing does. Shared on purpose rather than written twice: two identical
+   placeholders read as provisional, two different ones read as copy.
+
+   The sections say what belongs in them instead of filling space, which is
+   something to write against and impossible to mistake for the real thing.
+   Delete the call, not the text, when the copy arrives. */
+function placeholderStudy(cover) {
+  return {
+    cover,
+    sections: [
+      {
+        title: 'Placeholder. What was in the way before anyone opened Figma.',
+        paragraphs: [
+          'Placeholder copy, sitting here so the shape of the page can be judged before the writing exists. Two or three sentences belong here on the problem as it actually turned up, in the words you would use with a colleague rather than with a jury.',
+        ],
+      },
+      {
+        title: 'Placeholder. The decision you would defend.',
+        paragraphs: [
+          'Placeholder copy. One idea rather than a list of screens: the call that changed the outcome, and what it cost to make it.',
+        ],
+        figure: { cover: null, caption: 'Placeholder figure' },
+      },
+      {
+        title: 'Placeholder. What came out of it.',
+        paragraphs: [
+          'Placeholder copy. What moved, with a number if there is one and without one if there is not.',
+        ],
+      },
+    ],
+  }
+}
 
 export const projects = [
   {
@@ -83,6 +118,7 @@ export const projects = [
   },
   {
     id: 'project-02',
+    study: placeholderStudy(emeis),
     title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
     cover: emeis,
@@ -96,9 +132,10 @@ export const projects = [
   },
   {
     id: 'project-03',
-    title: 'Placeholder project. Say what was broken before you touched it.',
+    study: placeholderStudy(ceva),
+    title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
-    cover: '',
+    cover: ceva,
     link: null,
     mat: 'blue',
     x: 27,
