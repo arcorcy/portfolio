@@ -4,7 +4,7 @@ import Hero from './components/Hero.jsx'
 import Mesh from './components/Mesh.jsx'
 import Work from './components/Work.jsx'
 import Process from './components/Process.jsx'
-import Journey from './components/Journey.jsx'
+import Experience from './components/Experience.jsx'
 import Contact from './components/Contact.jsx'
 
 export default function App() {
@@ -18,7 +18,7 @@ export default function App() {
           <Work />
         </Mesh>
         <Process />
-        <Journey />
+        <Experience />
       </main>
       <Contact />
     </div>
