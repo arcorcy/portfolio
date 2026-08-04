@@ -27,14 +27,14 @@
      These are not accents and they do not compete with the lime: they belong
      to a project, they only ever appear behind a cover, and there is exactly
      one per project so the constellation is readable at a glance. */
-  --color-mat-pink: #f3cbf2;
-  --color-mat-orange: #ff9338;
-  --color-mat-blue: #a8dcf2;
-  --color-mat-sand: #d9dbd0;
+  --color-mat-pink: #ECE9E2;
+  --color-mat-orange: #ECE9E2;
+  --color-mat-blue: #ECE9E2;
+  --color-mat-sand: #ECE9E2;
 
   --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
 
-  --radius-shot: 24px;
+  --radius-shot: 12px;
   --radius-panel: 28px;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);

@@ -63,6 +63,13 @@ const WORD_CLIP = 'inset(-0.4em -0.25em -0.22em -0.25em)'
 
    Scroll driven rather than played once on a threshold, which is the whole reason
    scrolling back up brings it back instead of leaving it gone.
+
+   A pinned title needs a tighter window than this default, which is what
+   `exitOffset` is for: it does not travel at all while its panel is pinned, so it
+   rests at whatever height the panel's contents centre it at, and if that height
+   falls inside the window it sits half faded for the whole sequence. Measured on
+   Process at 900px, the pinned title rests 124px down, well inside a window that
+   opens at 180.
    ------------------------------------------------------------------ */
 const EXIT_OFFSET = ['start 0.2', 'end 0']
 const OUT_LIFT = -44
@@ -70,9 +77,9 @@ const OUT_LIFT = -44
 /* The box that is measured is not the box that moves: the wrapper keeps its
    layout position whatever the heading does, so the transform cannot feed back
    into the measurement it is derived from. */
-function Leaving({ children }) {
+function Leaving({ offset, children }) {
   const box = useRef(null)
-  const { scrollYProgress } = useScroll({ target: box, offset: EXIT_OFFSET })
+  const { scrollYProgress } = useScroll({ target: box, offset })
   const opacity = useTransform(scrollYProgress, [0, 1], [1, 0])
   const y = useTransform(scrollYProgress, [0, 1], [0, OUT_LIFT])
 
@@ -92,6 +99,7 @@ export function Headline({
   shown,
   clip = 'line',
   exit = false,
+  exitOffset = EXIT_OFFSET,
 }) {
   const reduce = useReducedMotion()
   const ref = useRef(null)
@@ -159,7 +167,7 @@ export function Headline({
      a caller already animates on its own layers: the Works title has an opacity
      of its own for the teaser's arrival. */
   if (!exit || reduce) return heading
-  return <Leaving>{heading}</Leaving>
+  return <Leaving offset={exitOffset}>{heading}</Leaving>
 }
 
 /* ------------------------------------------------------------------

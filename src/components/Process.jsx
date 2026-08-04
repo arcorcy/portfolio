@@ -33,6 +33,14 @@ const { steps } = process
 const TRACKS = resolveTracks(steps)
 
 // Scroll length of one step, in percent of the viewport height.
+/* The pinned title rests inside the panel rather than travelling through the
+   viewport, so its exit needs a window that opens above where it rests. Measured
+   at 900px it sits 124px down, which the default window (opening at a fifth of
+   the screen, 180px) would have caught: it would have spent the whole sequence at
+   77% opacity. This one opens at 5%, so nothing happens until the track lets the
+   panel go and the title really does ride off the top. */
+const PINNED_EXIT = ['start 0.05', 'end 0']
+
 const PER_STEP = 90
 
 const SPRING = { type: 'spring', stiffness: 120, damping: 16, mass: 0.9 }
@@ -355,9 +363,20 @@ export default function Process() {
         style={{ height: `calc(100svh + ${steps.length * PER_STEP}svh)` }}
         className={`relative z-10 ${reduce ? 'hidden' : 'hidden lg:block'}`}
       >
-        <div className="gutter sticky top-0 flex h-svh flex-col justify-center gap-10 overflow-hidden">
+        {/* overflow-clip and not hidden. hidden makes this a scroll container,
+            which Framer's useScroll then takes for the container the title lives
+            in, and a container that never scrolls leaves the title's exit at zero
+            for good. clip does the same clipping without that, and it is the same
+            reason Experience's pinned panel has clip. */}
+        <div className="gutter sticky top-0 flex h-svh flex-col justify-center gap-10 overflow-clip">
+          {/* exit works here for the same reason it works anywhere: it measures
+              the title's own travel. While the panel is pinned the title does not
+              move, so nothing happens; when the track ends and the panel lets go,
+              the title rides it off the top and leaves on the way. */}
           <Headline
             lines={process.title}
+            exit
+            exitOffset={PINNED_EXIT}
             className="display-lg mx-auto w-full max-w-[1400px] text-center"
           />
 
@@ -389,7 +408,7 @@ export default function Process() {
           reduce ? '' : 'lg:hidden'
         }`}
       >
-        <Headline lines={process.title} className="display-lg mb-16 text-center" />
+        <Headline lines={process.title} exit className="display-lg mb-16 text-center" />
 
         {steps.map((step, i) => (
           <FlowStep key={step.id} step={step} index={i} reduce={reduce} />

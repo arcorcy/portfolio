@@ -46,7 +46,7 @@ Valeur fixe et non un pourcentage : les sections plafonnent déjà leur contenu 
 --color-dim:     #d9d9e5   /* paragraphes de la section sombre */
 ```
 
-Règle d'usage : **un seul accent plein**, le lime, et seulement à trois endroits (pastille de nav active, bouton email du footer, un mot-clé par paragraphe de How I work). Le forest ne sert qu'aux intitulés de poste. Tout le reste est ink / mute / white.
+Règle d'usage : **un seul accent plein**, le lime, et seulement à cinq endroits (pastille de nav active, bouton email du footer, un mot-clé par paragraphe de How I work, bouton plein écran de la fenêtre Experience, tag LinkedIn au survol du portrait). Le forest ne sert qu'aux intitulés de poste. Tout le reste est ink / mute / white.
 
 Le halo du footer n'est pas un cinquième endroit : c'est de la lumière et pas un aplat, il culmine à 13 % et s'est dissous bien avant d'atteindre un bord, donc il ne forme jamais de forme. Il est posé derrière le bouton email, ce qui le fait lire comme ce bouton allumé plutôt que comme une couleur de plus.
 
@@ -90,7 +90,8 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 |---|---|---|
 | Reveal | blocs de contenu | opacity + Y 26px + blur 8px, `once: true`, 0.9s |
 | Headline mask | tous les titres | mot par mot, stagger 55ms. Masque à la ligne par défaut, **au mot** pour Contact dont les phrases s'enroulent |
-| Sortie de titre | Works, Experiences | le titre s'efface et monte de 44px **en quittant le haut de l'écran**, sur sa propre course et non sur celle de sa section, piloté par le scroll donc réversible en remontant |
+| Sortie de titre | Works, Experiences, How I work | le titre s'efface et monte de 44px **en quittant le haut de l'écran**, sur sa propre course et non sur celle de sa section, piloté par le scroll donc réversible en remontant. Le titre épinglé de How I work a une fenêtre plus serrée, sinon il resterait à demi effacé pendant toute la séquence |
+| Tag du portrait | Hero | au survol de la photo, une pastille lime « Say hi on LinkedIn » qui suit le pointeur **sur le pourtour du cercle**, reste droite, change de côté de part et d'autre de l'axe vertical et penche de 9° au plus. La photo est le lien, le tag l'affordance |
 | ScrollWords | How I work | opacité 0.16 → 1 mot par mot, pilotée par la position de scroll (réversible au scroll inverse) |
 | Quadrillage | Works + How I work | 15 colonnes en desktop, plancher de cellule à 48px en dessous. Apparaît en fondu à l'arrivée de Works, disparaît avant la fin de How I work |
 | Constellation | Works | survol : la carte monte à 1,04 et les autres tombent à 10 %. Le texte apparaît collé à la carte, du côté où il y a de la place, et la suit au drag. Dérive au scroll, flottement en boucle, drag contraint au plateau |

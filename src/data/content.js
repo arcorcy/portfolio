@@ -29,6 +29,9 @@ export const hero = {
      order had slipped: "I design with powerful tools interfaces that solve
      problems" put the tools before the thing being designed. */
   note: '*I design interfaces with powerful tools to solve problems (and I make sure it looks good).',
+  /* What the tag on the portrait says. Short enough to ride the rim of a 120px
+     circle without reaching across the claim underneath it. */
+  photoTag: 'Say hi on LinkedIn',
 }
 
 export const work = {

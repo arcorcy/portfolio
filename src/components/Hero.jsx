@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion, useReducedMotion, useSpring } from 'framer-motion'
 import { EASE, HIDDEN_Y } from '../lib/motion.jsx'
-import { hero } from '../data/content.js'
+import { hero, profile } from '../data/content.js'
 import profileImg from '../img/profil.jpg'
 
 /* The lime block gets its height from the line height, not from padding on the
@@ -45,6 +46,157 @@ function Word({ children, delay, reduce, className = '', maskRef }) {
         {children}
       </motion.span>
     </span>
+  )
+}
+
+/* ------------------------------------------------------------------
+   The portrait, and the tag that rides its rim.
+
+   The tag is fixed and portalled out to the body rather than placed beside the
+   image, and it has to be: the word this portrait sits in carries a clip-path,
+   and a clip-path on an ancestor clips a fixed descendant exactly as it clips an
+   ordinary one. Out at the body nothing can cut it. Experience's refusal tip is
+   out for the same reason.
+
+   It follows the pointer only around the rim. The angle from the centre of the
+   circle to the pointer decides where on the edge it sits, so it never covers the
+   face and never wanders off over the claim underneath.
+
+   Upright, always, with the anchor swapping sides across the vertical axis so the
+   tag grows away from the portrait instead of back over it. Laid along the radius
+   or along the tangent it would stand on its end at the top and the bottom of the
+   circle, which is a label nobody can read: what it does instead is lean a few
+   degrees with the rim, which is enough to read as orienting itself.
+
+   The portrait is the link, not the tag. The tag sits outside the circle, so a
+   pointer on the photo is never on the tag and never could be: it is the
+   affordance, and the thing under the pointer is what takes the click.
+   ------------------------------------------------------------------ */
+const RIM_GAP = 10 // px between the circle's edge and the tag
+const TILT_MAX = 9 // degrees of lean, kept well short of unreadable
+const RIDE = { stiffness: 320, damping: 26, mass: 0.55 }
+
+function pin(v, limit) {
+  return Math.max(-limit, Math.min(limit, v))
+}
+
+/* Where the tag goes for a pointer at px, py: the point on the rim in that
+   direction, which side it should grow towards, and how much it leans. */
+function onRim(rect, px, py) {
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  const radius = rect.width / 2
+  const dx = px - cx
+  const dy = py - cy
+  // A pointer exactly on the centre has no direction: park it at three o'clock
+  // rather than divide by nothing.
+  const reach = Math.hypot(dx, dy) || 1
+  const out = radius + RIM_GAP
+
+  return {
+    x: cx + (dx / reach) * out,
+    y: cy + (dy / reach) * out,
+    left: dx < 0,
+    tilt: pin((dy / radius) * TILT_MAX, TILT_MAX),
+  }
+}
+
+function PhotoTag({ reduce }) {
+  const photo = useRef(null)
+  const [live, setLive] = useState(false)
+  const [left, setLeft] = useState(false)
+
+  const x = useSpring(0, RIDE)
+  const y = useSpring(0, RIDE)
+  const tilt = useSpring(0, RIDE)
+
+  /* Placed from the rect read at the moment of the move, never from one measured
+     once: the page scrolls under this portrait, so a cached centre would be wrong
+     by however far it has travelled. */
+  function put(px, py, jump = false) {
+    const el = photo.current
+    if (!el) return
+    const spot = onRim(el.getBoundingClientRect(), px, py)
+    const lean = reduce ? 0 : spot.tilt
+
+    if (jump) {
+      x.jump(spot.x)
+      y.jump(spot.y)
+      tilt.jump(lean)
+    } else {
+      x.set(spot.x)
+      y.set(spot.y)
+      tilt.set(lean)
+    }
+    setLeft(spot.left)
+  }
+
+  // Focus has no pointer, so the tag takes the rim at three o'clock.
+  function park() {
+    const el = photo.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    put(r.right + r.width, r.top + r.height / 2, true)
+  }
+
+  return (
+    <>
+      <a
+        ref={photo}
+        href={profile.linkedin}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={hero.photoTag}
+        data-cursor="link"
+        /* The em box is unchanged from when this was a bare image: the alignment
+           and the leading margin move up to the anchor and the image fills it, so
+           the circle is still exactly 1.2em and still one of the four terms the
+           type's size divisor is measured from. */
+        className="ml-[0.1em] inline-block rounded-full align-[-0.17em]"
+        onPointerEnter={(e) => {
+          setLive(true)
+          put(e.clientX, e.clientY, true)
+        }}
+        onPointerMove={(e) => live && put(e.clientX, e.clientY)}
+        onPointerLeave={() => setLive(false)}
+        onFocus={() => {
+          setLive(true)
+          park()
+        }}
+        onBlur={() => setLive(false)}
+      >
+        <img
+          src={profileImg}
+          alt=""
+          className="block h-[1.2em] w-[1.2em] rounded-full object-cover"
+        />
+      </a>
+
+      {createPortal(
+        <AnimatePresence>
+          {live && (
+            <motion.div
+              className="pointer-events-none fixed left-0 top-0 z-[80]"
+              style={{ x, y }}
+            >
+              <div className={`-translate-y-1/2 ${left ? '-translate-x-full' : ''}`}>
+                <motion.span
+                  className="block whitespace-nowrap rounded-full bg-lime px-4 py-2 text-sm font-bold text-ink"
+                  style={{ rotate: tilt }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+                  transition={{ duration: 0.25, ease: EASE }}
+                >
+                  {hero.photoTag}
+                </motion.span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -152,13 +304,7 @@ export default function Hero() {
               </Word>
             ))}
             <Word delay={0.25 + greeting.length * 0.06} reduce={reduce}>
-              <img
-                src={profileImg}
-                alt=""
-                // In em, like everything else on this line: it is one of the four
-                // terms the size divisor is measured from.
-                className="ml-[0.1em] inline-block h-[1.2em] w-[1.2em] rounded-full object-cover align-[-0.17em]"
-              />
+              <PhotoTag reduce={reduce} />
             </Word>
           </Line>
 
