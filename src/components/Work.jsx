@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   AnimatePresence,
+  animate,
   motion,
   useMotionValue,
   useReducedMotion,
@@ -76,6 +77,42 @@ function clamp(v, limit) {
 }
 
 /* ------------------------------------------------------------------
+   Is the constellation the layout on screen?
+
+   Below lg the field is display:none and the slider takes over. A box of no size
+   is the whole cause of the pile: Framer resolves dragConstraints against the
+   field, and on a resize it puts anything outside them back inside, so four
+   cards clamped into nothing all arrive at the same point and the constellation
+   comes back as a stack in the middle. Reproduced by measuring: loaded straight
+   at 1440 every card sits at transform none, and after one trip under 1024 they
+   carry translations of 200px and more towards the centre.
+
+   So the constraints are handed over only while the field is really there, and
+   the cards ease back to their own positions on the way in.
+   ------------------------------------------------------------------ */
+const WIDE = '(min-width: 64rem)'
+
+/* Long and soft: this is a layout finding itself again, not a card being thrown,
+   and the point of easing it at all is that the arrangement should be seen to
+   come back rather than appear to have always been right. */
+const REGATHER = { duration: 1.1, ease: EASE }
+
+function useWide() {
+  const [wide, setWide] = useState(true)
+
+  useEffect(() => {
+    const query = window.matchMedia(WIDE)
+    const read = () => setWide(query.matches)
+
+    read()
+    query.addEventListener('change', read)
+    return () => query.removeEventListener('change', read)
+  }, [])
+
+  return wide
+}
+
+/* ------------------------------------------------------------------
    The title, which starts life as a teaser at the foot of the hero: it
    turns up three seconds in to invite the scroll, then grows and rises
    into its own place as the page moves.
@@ -125,7 +162,7 @@ function Nudge({ opacity }) {
   )
 }
 
-function Teaser({ reduce }) {
+function Teaser({ reduce, out }) {
   const home = useRef(null)
   const [geometry, setGeometry] = useState(null)
   const [shown, setShown] = useState(reduce)
@@ -211,7 +248,14 @@ function Teaser({ reduce }) {
           data-cursor={live ? 'link' : undefined}
           className="relative block"
         >
-          <Headline lines={work.title} className="display-lg text-center" shown={shown} />
+          {/* out goes on the Headline and not on the layer above, which already
+              owns an opacity of its own for the teaser's own arrival. */}
+          <Headline
+            lines={work.title}
+            className="display-lg text-center"
+            shown={shown}
+            out={out}
+          />
           {!reduce && <Nudge opacity={nudge} />}
         </a>
       </motion.div>
@@ -284,6 +328,7 @@ function Card({
   onLeave,
   onOpen,
   reduce,
+  wide,
   z,
   onFront,
 }) {
@@ -306,6 +351,18 @@ function Card({
      which is what lets the lean below read how fast the card is moving. */
   const dragX = useMotionValue(0)
   const dragY = useMotionValue(0)
+
+  /* Coming back to the constellation, a card goes home rather than staying where
+     a stale clamp left it, and it is eased there because zero is its arrangement:
+     the percentage left/top are the design, and an offset of nothing is what puts
+     the card on them. Nothing runs on the way out, and nothing runs while the
+     width merely changes inside the breakpoint, so a card someone has carried
+     somewhere stays carried. */
+  useEffect(() => {
+    if (!wide) return undefined
+    const back = [animate(dragX, 0, REGATHER), animate(dragY, 0, REGATHER)]
+    return () => back.forEach((run) => run.stop())
+  }, [wide, dragX, dragY])
 
   /* Percentages, not pixels: a percentage translation resolves against the
      card's own height, so the drift and the float both stay in proportion at
@@ -412,7 +469,9 @@ function Card({
          and does not need to be: Framer measures the page box of whatever ref it
          is given and compares it with the card's own. */
       drag={!reduce}
-      dragConstraints={field}
+      /* Only while the field has a size. Handed a hidden one, Framer clamps every
+         card into a box of nothing and the constellation returns as a pile. */
+      dragConstraints={wide ? field : false}
       dragElastic={0.16}
       dragMomentum={!reduce}
       dragTransition={THROW}
@@ -567,6 +626,7 @@ function Strip({ onOpen }) {
 /* ------------------------------------------------------------------ */
 export default function Work() {
   const reduce = useReducedMotion()
+  const wide = useWide()
   const section = useRef(null)
   // Where the cards live, and how far they may go. Two different boxes.
   const stage = useRef(null)
@@ -638,13 +698,14 @@ export default function Work() {
 
          No justify-center: the field below is flex-1, and flex-grow claims any
          leftover space before justify-content sees it, so centering the pair had
-         nothing left to distribute. The gap above the teaser is py-24 lg:py-16
-         doing the whole job on its own, confirmed by measuring the two against
-         each other rather than assumed. */
-      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:py-16"
+         nothing left to distribute. The gap above the teaser is the padding doing
+         the whole job on its own, so it is written out: lg:pt-32 to match the
+         other sections, which all give their title 128px and left this one at 64
+         nearly touching the nav. */
+      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:pb-16 lg:pt-32"
     >
       <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Teaser reduce={reduce} />
+        <Teaser reduce={reduce} out={scrollYProgress} />
       </div>
 
       {/* How far a card may travel, which is no longer where it lives.
@@ -695,6 +756,7 @@ export default function Work() {
               onLeave={() => setHovered(null)}
               onOpen={open}
               reduce={reduce}
+              wide={wide}
               z={zOrder[project.id] ?? 10 + i}
               onFront={() => bringToFront(project.id)}
             />

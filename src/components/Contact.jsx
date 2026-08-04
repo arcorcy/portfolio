@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion, useReducedMotion, useScroll } from 'framer-motion'
-import { ScrollWords, Magnetic, EASE } from '../lib/motion.jsx'
+import { motion, useReducedMotion } from 'framer-motion'
+import { Headline, Magnetic, EASE } from '../lib/motion.jsx'
 import { contact, profile } from '../data/content.js'
 
 const OUTLINE =
@@ -20,24 +20,6 @@ const HALO =
    easing for something arriving somewhere, and nothing here ever arrives. Eleven
    seconds is long enough that the halo never appears to move while it is read. */
 const BREATH = { duration: 11, repeat: Infinity, ease: 'easeInOut' }
-
-/* The words are lit by the footer's own arrival: from its top edge at 90% of the
-   screen to its top edge at 10%, which is 0.8 of a screen of travel and all of
-   it reachable, since the footer is the last screen and scrolling it in is the
-   end of the page. LIT stops the light a little short of that so the sentence is
-   whole before the scroll runs out.
-
-   Driven from here rather than by ScrollWords' own useScroll, because that is
-   what the two sections already lighting words this way do, and it is the path
-   with mileage on it.
-
-   The arithmetic, since the footer is the last screen and running out of scroll
-   would leave the sentence half lit: the footer is one screen tall and its own
-   document top is therefore the last scroll position, so progress reaches 1 with
-   90px of scrolling still to spare, and the last word finishes at 0.85 of that,
-   198px before the end. It only gets safer on a shorter viewport, where the
-   footer is taller than a screen and the whole travel arrives sooner. */
-const LIT = [0, 0.85]
 
 // How long the button admits to having copied before going back to the address.
 const HELD = 1800
@@ -131,12 +113,6 @@ function Label({ shown, decorative = false, children }) {
 
 export default function Contact() {
   const reduce = useReducedMotion()
-  const footer = useRef(null)
-  const { scrollYProgress } = useScroll({
-    target: footer,
-    offset: ['start 0.9', 'start 0.1'],
-  })
-
   const [copied, setCopied] = useState(false)
   const timer = useRef(0)
 
@@ -172,17 +148,13 @@ export default function Contact() {
        the footer itself: that is the trap Work and Experience both fell into, a
        growing child consuming the free space before justify-content has anything
        left to distribute. Centring inside the child that grows cannot go wrong. */
-    <footer
-      id="contact"
-      ref={footer}
-      className="gutter flex min-h-svh flex-col bg-ink text-white"
-    >
+    <footer id="contact" className="gutter flex min-h-svh flex-col bg-ink text-white">
       <div className="relative flex flex-1 flex-col items-center justify-center py-24 text-center">
         {/* The halo carries its own clip, in a box beside the heading rather than
-            around it: an overflow on an ancestor of the heading is a thing
-            useScroll can take for the scroll container the heading lives in, and
-            a container that never scrolls would leave the word progress at zero.
-            Cheap to avoid, so avoided rather than relied on. */}
+            around it. An overflow around the heading would clip the words waiting
+            below their mask, and an element clipped out by an ancestor reports no
+            intersection: Headline watches the heading for exactly that reason, and
+            a title that never reports entering view never reveals itself. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-clip">
           <motion.div
             className="absolute left-1/2 top-1/2 aspect-square w-[44rem] max-w-full"
@@ -192,15 +164,17 @@ export default function Contact() {
           />
         </div>
 
-        {/* Word by word on the scroll rather than a mask on arrival, the way the
-            other dark section reads. It also means the wrapping these two long
-            sentences do on a laptop costs nothing: with no mask there is no band
-            for a wrapped word to be seen on early. */}
-        <ScrollWords
-          as="h2"
+        {/* The same mask reveal as every other section title. clip="word" because
+            these two sentences wrap on a laptop and not only on a phone: the line
+            mask cuts at the container, so a wrapped word would sit on the next
+            line's band and be seen before its turn.
+
+            No exit here, unlike the other titles: this section is the last screen
+            and its end is the end of the document, so a title that left as the
+            section did would take the whole point of the page with it. */}
+        <Headline
           lines={contact.lead}
-          progress={scrollYProgress}
-          range={LIT}
+          clip="word"
           className="display-lg relative z-10 mx-auto max-w-[18em]"
         />
 

@@ -2,6 +2,7 @@ import { Fragment, useRef } from 'react'
 import {
   motion,
   useInView,
+  useMotionValue,
   useScroll,
   useTransform,
   useSpring,
@@ -29,6 +30,34 @@ const MASK_ROOM = '0.22em'
 export const HIDDEN_Y = '128%'
 export const maskStyle = { paddingBottom: MASK_ROOM, marginBottom: `-${MASK_ROOM}` }
 
+/* Where the reveal is clipped, chosen by the `clip` prop.
+
+   'line', the default, puts one mask on each declared line. That is right for as
+   long as the line does not wrap: the mask cuts at the container box, so a word
+   parked under its own line on a narrow screen stays inside the mask, lands on
+   the next line's band, and is seen before its turn.
+
+   'word' clips each word to its own box instead. A word cannot wrap, so a mask
+   sitting on the word survives any wrapping without having to know where it
+   falls. It is the hero's technique, there for the same reason, and it is what
+   the two long sentences of the contact heading need, since those wrap on a
+   laptop rather than only on a phone.
+
+   clip-path and not overflow, again for the hero's reason: overflow on an
+   inline-block moves its baseline to the bottom margin edge, which would drop
+   every word off the strut. 0.22em below the box for the descenders, the same
+   number MASK_ROOM uses, and 0.4em above it for the ascenders and for the accent
+   Manrope puts over a capital. */
+const WORD_CLIP = 'inset(-0.4em -0.25em -0.22em -0.25em)'
+
+/* When a title leaves, as a fraction of its own section's scroll progress, and
+   how far it lifts on the way out. Tied to the scroll rather than played once on
+   a threshold, which is what makes scrolling back up bring it back instead of
+   leaving it gone. It starts late: the title should still be there while the
+   section's content is being read, and only go as the section itself does. */
+const OUT = [0.84, 0.97]
+const OUT_LIFT = -44
+
 export function Headline({
   lines,
   className = 'display-lg',
@@ -36,6 +65,9 @@ export function Headline({
   stagger = 0.055,
   as: Tag = 'h2',
   shown,
+  clip = 'line',
+  out,
+  outRange = OUT,
 }) {
   const reduce = useReducedMotion()
   const ref = useRef(null)
@@ -50,18 +82,39 @@ export function Headline({
      first shown as a teaser inside the hero, on a timer rather than on the
      moment it enters view, and it is the same element either way. */
   const lit = shown ?? inView
+  const perWord = clip === 'word'
+
+  /* The hooks run whether or not a caller asked for an exit, since they cannot be
+     conditional, and the stand-in never moves so the transforms sit still. */
+  const still = useMotionValue(0)
+  const leaving = out ?? still
+  const outOpacity = useTransform(leaving, outRange, [1, 0])
+  const outY = useTransform(leaving, outRange, [0, OUT_LIFT])
+
+  /* Motion on the heading itself rather than on a wrapper, so nothing is added to
+     the layout and the exit cannot fight whatever the caller already animates on
+     its own layers: the Works title, for one, has an opacity of its own. */
+  const Root = motion[Tag] ?? motion.h2
   let i = -1
 
   return (
-    <Tag ref={ref} className={className}>
+    <Root
+      ref={ref}
+      className={className}
+      style={out && !reduce ? { opacity: outOpacity, y: outY } : undefined}
+    >
       {lines.map((line, li) => (
-        <span key={li} className="block overflow-hidden" style={maskStyle}>
+        <span
+          key={li}
+          className={perWord ? 'block' : 'block overflow-hidden'}
+          style={perWord ? undefined : maskStyle}
+        >
           {line.split(' ').map((word, wi) => {
             if (word === '') return null
             i += 1
-            return (
+
+            const travel = (
               <motion.span
-                key={`${li}-${wi}`}
                 className="inline-block whitespace-pre"
                 initial={false}
                 animate={
@@ -71,13 +124,27 @@ export function Headline({
                 }
                 transition={{ duration: 1, delay: delay + i * stagger, ease: EASE }}
               >
-                {word}{' '}
+                {/* The space rides inside the word when the mask is the line's,
+                    and outside it when the mask is the word's: there it has to
+                    sit between two clipped boxes, which is the only break
+                    opportunity a row of inline-blocks has. */}
+                {perWord ? word : `${word} `}
               </motion.span>
+            )
+
+            if (!perWord) return <Fragment key={`${li}-${wi}`}>{travel}</Fragment>
+
+            return (
+              <Fragment key={`${li}-${wi}`}>
+                <span className="inline-block" style={{ clipPath: WORD_CLIP }}>
+                  {travel}
+                </span>{' '}
+              </Fragment>
             )
           })}
         </span>
       ))}
-    </Tag>
+    </Root>
   )
 }
 
@@ -121,7 +188,7 @@ function Word({ children, progress, range, accent }) {
   )
 }
 
-export function ScrollWords({ text, lines, className = '', progress, range, as: Tag = 'p' }) {
+export function ScrollWords({ text, className = '', progress, range }) {
   const ref = useRef(null)
   const reduce = useReducedMotion()
   const own = useScroll({
@@ -129,14 +196,19 @@ export function ScrollWords({ text, lines, className = '', progress, range, as: 
     offset: ['start 0.85', 'end 0.45'],
   })
 
-  /* One entry per declared line, so a caller can keep a two-sentence heading on
-     its two lines. The word index runs across the lines rather than restarting
-     in each, which is what makes the light sweep through in reading order
-     instead of both lines filling at once. A plain string is the single-line
-     case of the same thing, and stays the common one. */
-  const rows = (lines ?? [text]).map(parseAccents)
-  const total = rows.reduce((n, row) => n + row.length, 0)
-  const perLine = lines != null
+  const words = parseAccents(text)
+
+  if (reduce) {
+    return (
+      <p ref={ref} className={className}>
+        {words.map(({ word, accent }, i) => (
+          <span key={i} className={accent ? 'text-lime' : undefined}>
+            {word}{' '}
+          </span>
+        ))}
+      </p>
+    )
+  }
 
   // A pinned section drives the words from its own progress and hands over the
   // slice of it that belongs to this paragraph, because the paragraph itself
@@ -145,43 +217,20 @@ export function ScrollWords({ text, lines, className = '', progress, range, as: 
   const source = driven ? progress : own.scrollYProgress
   const [from, to] = driven ? range : [0, LIT_AT]
   const span = to - from
-  let i = -1
 
   return (
-    <Tag ref={ref} className={className}>
-      {rows.map((row, ri) => {
-        const line = row.map(({ word, accent }, wi) => {
-          i += 1
-          if (reduce) {
-            return (
-              <span key={wi} className={accent ? 'text-lime' : undefined}>
-                {word}{' '}
-              </span>
-            )
-          }
-
-          const at = i
-          return (
-            <Word
-              key={wi}
-              progress={source}
-              accent={accent}
-              range={[from + (at / total) * span, from + ((at + 1) / total) * span]}
-            >
-              {word}
-            </Word>
-          )
-        })
-
-        return perLine ? (
-          <span key={ri} className="block">
-            {line}
-          </span>
-        ) : (
-          <Fragment key={ri}>{line}</Fragment>
-        )
-      })}
-    </Tag>
+    <p ref={ref} className={className}>
+      {words.map(({ word, accent }, i) => (
+        <Word
+          key={i}
+          progress={source}
+          accent={accent}
+          range={[from + (i / words.length) * span, from + ((i + 1) / words.length) * span]}
+        >
+          {word}
+        </Word>
+      ))}
+    </p>
   )
 }
 

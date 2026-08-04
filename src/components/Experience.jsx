@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion'
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useScroll,
+} from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
 import { experience } from '../data/experience.js'
 import Placeholder from './Placeholder.jsx'
@@ -793,11 +799,19 @@ function Window({ spec, room, zIndex, onFront, onExpand, tip, onRefuse, onRest }
 /* ------------------------------------------------------------------ */
 export default function Experience() {
   const reduce = useReducedMotion()
+  const section = useRef(null)
   const field = useRef(null)
   const browserBox = useRef(null)
   const notesBox = useRef(null)
   const terminalBox = useRef(null)
   const closer = useRef(null)
+
+  /* The whole section crossing the viewport, which is what the title's exit is
+     hung on: it leaves as the section does rather than at a fixed distance. */
+  const { scrollYProgress: leaving } = useScroll({
+    target: section,
+    offset: ['start end', 'end start'],
+  })
 
   const [browserActive, setBrowserActive] = useState(0)
   const [notesActive, setNotesActive] = useState(0)
@@ -874,7 +888,7 @@ export default function Experience() {
       // Front of the other two by default, and lower right: this is the one
       // the eye lands on first.
       left: '70%',
-      top: '58%',
+      top: '48%',
       width: '40.25rem',
       height: '34.5rem',
       render: (props) => <BrowserFrame active={browserActive} onSelect={setBrowserActive} {...props} />,
@@ -884,7 +898,7 @@ export default function Experience() {
       ref: notesBox,
       // Back of the stack by default, lower left.
       left: '24%',
-      top: '62%',
+      top: '42%',
       width: '33.5rem',
       height: '27.5rem',
       render: (props) => <NotesFrame active={notesActive} onSelect={setNotesActive} {...props} />,
@@ -894,7 +908,7 @@ export default function Experience() {
       ref: terminalBox,
       // Between the other two by default, upper centre.
       left: '46%',
-      top: '34%',
+      top: '25%',
       width: '34.5rem',
       height: '23rem',
       render: (props) => <TerminalFrame {...props} />,
@@ -931,6 +945,7 @@ export default function Experience() {
   return (
     <section
       id="experience"
+      ref={section}
       /* overflow-x-clip and no justify-center, the same reasons Work's section
          has neither: a drag may overshoot the field on its elastic, and a
          flex-1 field would defeat justify-content before it ever ran, so the
@@ -939,6 +954,7 @@ export default function Experience() {
     >
       <Headline
         lines={experience.title}
+        out={leaving}
         className="display-lg mx-auto w-full max-w-[1400px] text-center"
       />
 
