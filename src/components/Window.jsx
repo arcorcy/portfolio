@@ -29,6 +29,11 @@ const LIFT = { duration: 0.4, ease: EASE }
 /* ------------------------------------------------------------------
    The three buttons in the corner.
 
+   2.5 rather than 3, and gap-1 rather than 1.5: these frames are drawn at a
+   fraction of the size of the thing they imitate, so chrome copied at its real
+   proportions reads as oversized furniture. The whole of the drawn chrome is
+   pitched a notch down from that, here and in both sections' bars.
+
    None of them does anything, and that is the joke: they are there to be tried.
    All three are therefore the same switched-off colour. There used to be a lime
    one that opened the window full screen, and it earned the accent by being the
@@ -46,7 +51,7 @@ export function Dots({ onRefuse, onRest, dark = false }) {
     /* self-center rather than the row's items-end: a tab strip is flush with the
        bottom of its own strip, and dots sitting on that line straddled the border
        under it. */
-    <div className="flex shrink-0 items-center gap-1.5 self-center">
+    <div className="flex shrink-0 items-center gap-1 self-center">
       {DOTS.map((dot) => (
         <button
           key={dot.id}
@@ -60,7 +65,7 @@ export function Dots({ onRefuse, onRest, dark = false }) {
           onFocus={onRefuse}
           onMouseLeave={onRest}
           onBlur={onRest}
-          className={`h-3 w-3 rounded-full transition-transform duration-300 hover:scale-110 ${
+          className={`h-2.5 w-2.5 rounded-full transition-transform duration-300 hover:scale-110 ${
             dark ? 'bg-white/20' : 'bg-paper-deep'
           }`}
         />

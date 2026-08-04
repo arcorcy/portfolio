@@ -34,7 +34,7 @@ function Mark({ tab, prefer = 'favicon', className = '' }) {
 
 function Chevron({ dir }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
         d={dir === 'prev' ? 'M10 3.5L5.5 8l4.5 4.5' : 'M6 3.5L10.5 8 6 12.5'}
         stroke="currentColor"
@@ -69,7 +69,7 @@ function Steps({ length, active, onSelect, dark = false }) {
             disabled={dead}
             aria-label={move.label}
             data-cursor={dead ? 'hover' : 'link'}
-            className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors duration-300 ${
+            className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors duration-300 ${
               dead
                 ? dark
                   ? 'text-white/20'
@@ -166,11 +166,11 @@ function Tabs({ active, onSelect }) {
           aria-current={i === active ? 'page' : undefined}
           data-cursor="link"
           title={tab.place}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-t-[8px] px-2.5 py-1.5 text-xs transition-colors duration-300 ${
+          className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-t-[7px] px-2 py-1 text-[11px] transition-colors duration-300 ${
             i === active ? 'bg-white text-ink' : 'text-mute hover:text-ink'
           }`}
         >
-          <Mark tab={tab} className="h-3.5 w-3.5 shrink-0 rounded-[3px]" />
+          <Mark tab={tab} className="h-3 w-3 shrink-0 rounded-[3px]" />
           <span className="min-w-0 truncate">{tab.place}</span>
         </button>
       ))}
@@ -180,9 +180,9 @@ function Tabs({ active, onSelect }) {
 
 function Bar({ tab, active, onSelect }) {
   return (
-    <div className="flex items-center gap-2 border-b border-line bg-white px-2.5 py-1.5">
+    <div className="flex items-center gap-2 border-b border-line bg-white px-2 py-1">
       <Steps length={workTabs.length} active={active} onSelect={onSelect} />
-      <p className="truncate text-xs text-mute">
+      <p className="truncate text-[11px] text-mute">
         {tab.url ?? <span className="italic">url to fill in</span>}
       </p>
     </div>
@@ -198,7 +198,7 @@ function BrowserFrame({ active, onSelect, tip }) {
         FRAME_RADIUS
       }`}
     >
-      <div className="flex items-end gap-3 px-3 pt-2.5">
+      <div className="flex items-end gap-2.5 px-2.5 pt-2">
         <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
         <Tabs active={active} onSelect={onSelect} />
       </div>
@@ -228,16 +228,16 @@ function NotesFrame({ active, onSelect, tip }) {
         FRAME_RADIUS
       }`}
     >
-      <div className="flex items-end gap-3 px-3 pt-2.5">
+      <div className="flex items-end gap-2.5 px-2.5 pt-2">
         <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
         <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pb-1.5">
-          <p className="truncate text-xs font-bold text-mute">Notes</p>
+          <p className="truncate text-[11px] font-bold text-mute">Notes</p>
           <Steps length={schoolTabs.length} active={active} onSelect={onSelect} />
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <ul className="w-28 shrink-0 overflow-hidden border-r border-line bg-paper-deep/25 py-1 sm:w-32">
+        <ul className="w-24 shrink-0 overflow-hidden border-r border-line bg-paper-deep/25 py-1 sm:w-28">
           {schoolTabs.map((note, i) => (
             <li key={note.id}>
               <button
@@ -248,8 +248,8 @@ function NotesFrame({ active, onSelect, tip }) {
                   i === active ? 'bg-white' : 'hover:bg-white/60'
                 }`}
               >
-                <p className="truncate text-xs font-bold text-ink">{note.place}</p>
-                <p className="truncate text-[10px] text-mute">{note.role}</p>
+                <p className="truncate text-[11px] font-bold text-ink">{note.place}</p>
+                <p className="truncate text-[9px] text-mute">{note.role}</p>
               </button>
             </li>
           ))}
@@ -268,7 +268,7 @@ function NotesFrame({ active, onSelect, tip }) {
    ------------------------------------------------------------------ */
 function TerminalShell({ tab }) {
   return (
-    <div className="min-h-0 flex-1 overflow-hidden px-4 py-3 font-mono text-xs leading-[1.55] text-dim">
+    <div className="min-h-0 flex-1 overflow-hidden px-3.5 py-2.5 font-mono text-[11px] leading-[1.55] text-dim">
       <p className="text-white/40">$ whoami --role</p>
       <p className="mt-1 text-lime">
         {tab.role} <span className="text-white/40">@ {tab.place}</span>
@@ -295,9 +295,9 @@ function TerminalFrame({ tip }) {
         FRAME_RADIUS
       }`}
     >
-      <div className="flex items-end gap-3 px-3 pt-2.5">
+      <div className="flex items-end gap-2.5 px-2.5 pt-2">
         <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
-        <p className="min-w-0 flex-1 truncate pb-1.5 text-xs font-bold text-white/60">zsh</p>
+        <p className="min-w-0 flex-1 truncate pb-1 text-[11px] font-bold text-white/60">zsh</p>
       </div>
 
       <TerminalShell tab={freelanceTab} />
@@ -333,7 +333,7 @@ function Sheet({ head, dark = false, children }) {
         dark ? 'border border-white/10 bg-ink' : 'border border-line bg-paper'
       }`}
     >
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
+      <div className="flex items-center gap-2 px-2.5 py-2">
         <Dots dark={dark} />
         {head}
       </div>
@@ -346,7 +346,7 @@ function Sheet({ head, dark = false, children }) {
 function Label({ children, dark = false }) {
   return (
     <p
-      className={`min-w-0 flex-1 truncate text-xs font-bold ${dark ? 'text-white/60' : 'text-mute'}`}
+      className={`min-w-0 flex-1 truncate text-[11px] font-bold ${dark ? 'text-white/60' : 'text-mute'}`}
     >
       {children}
     </p>
@@ -365,7 +365,7 @@ function Ident({ tab, className = '' }) {
       <Mark tab={tab} prefer="logo" className="h-9 w-9 shrink-0 rounded-[8px]" />
       <div className="min-w-0">
         <h3 className="truncate text-[0.95rem] font-bold">{tab.place}</h3>
-        <p className="truncate text-xs text-mute">{tab.role}</p>
+        <p className="truncate text-[11px] text-mute">{tab.role}</p>
       </div>
     </div>
   )
@@ -478,7 +478,7 @@ function MailApp({ tab }) {
               <h3 className="truncate text-[0.95rem] font-bold">{tab.place}</h3>
               <p className="shrink-0 text-[11px] text-mute">{tab.period}</p>
             </div>
-            <p className="truncate text-xs text-mute">{tab.role}</p>
+            <p className="truncate text-[11px] text-mute">{tab.role}</p>
           </div>
         </div>
 

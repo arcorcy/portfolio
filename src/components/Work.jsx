@@ -208,9 +208,9 @@ function Teaser({ reduce }) {
    ------------------------------------------------------------------ */
 function MacBar({ project, tip }) {
   return (
-    <div className="flex items-center gap-2.5 border-b border-line bg-paper px-3 py-2.5">
+    <div className="flex items-center gap-2 border-b border-line bg-paper px-2.5 py-2">
       <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
-      <p className="min-w-0 flex-1 truncate text-xs font-bold text-mute">
+      <p className="min-w-0 flex-1 truncate text-[11px] font-bold text-mute">
         {project.label ?? project.subtitle}
       </p>
     </div>
@@ -219,10 +219,10 @@ function MacBar({ project, tip }) {
 
 function BrowserBar({ project, tip }) {
   return (
-    <div className="flex items-center gap-2.5 border-b border-line bg-paper px-3 py-2.5">
+    <div className="flex items-center gap-2 border-b border-line bg-paper px-2.5 py-2">
       <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
-      <div className="flex min-w-0 flex-1 rounded-full bg-white px-2.5 py-1">
-        <p className="min-w-0 truncate text-[11px] text-mute">
+      <div className="flex min-w-0 flex-1 rounded-full bg-white px-2 py-0.5">
+        <p className="min-w-0 truncate text-[10px] text-mute">
           {project.url ?? <span className="italic">url to fill in</span>}
         </p>
       </div>
