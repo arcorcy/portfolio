@@ -2,7 +2,6 @@ import { Fragment, useRef } from 'react'
 import {
   motion,
   useInView,
-  useMotionValue,
   useScroll,
   useTransform,
   useSpring,
@@ -50,13 +49,39 @@ export const maskStyle = { paddingBottom: MASK_ROOM, marginBottom: `-${MASK_ROOM
    Manrope puts over a capital. */
 const WORD_CLIP = 'inset(-0.4em -0.25em -0.22em -0.25em)'
 
-/* When a title leaves, as a fraction of its own section's scroll progress, and
-   how far it lifts on the way out. Tied to the scroll rather than played once on
-   a threshold, which is what makes scrolling back up bring it back instead of
-   leaving it gone. It starts late: the title should still be there while the
-   section's content is being read, and only go as the section itself does. */
-const OUT = [0.84, 0.97]
+/* ------------------------------------------------------------------
+   A title leaving the top of the screen.
+
+   Measured on the title's own travel, never on its section's. Hung on the
+   section, the exit lands at the end of that section, and a title sitting at the
+   top of one is off screen long before: at 0.84 of the section's progress the
+   heading had been gone for most of a screen, so nothing was ever seen to leave.
+
+   0 is the title still comfortably in view, 1 is its last line crossing the top
+   edge. On a 900px screen with a 68px heading that is about 250px of scrolling,
+   which puts the fade exactly where the title tucks under the nav.
+
+   Scroll driven rather than played once on a threshold, which is the whole reason
+   scrolling back up brings it back instead of leaving it gone.
+   ------------------------------------------------------------------ */
+const EXIT_OFFSET = ['start 0.2', 'end 0']
 const OUT_LIFT = -44
+
+/* The box that is measured is not the box that moves: the wrapper keeps its
+   layout position whatever the heading does, so the transform cannot feed back
+   into the measurement it is derived from. */
+function Leaving({ children }) {
+  const box = useRef(null)
+  const { scrollYProgress } = useScroll({ target: box, offset: EXIT_OFFSET })
+  const opacity = useTransform(scrollYProgress, [0, 1], [1, 0])
+  const y = useTransform(scrollYProgress, [0, 1], [0, OUT_LIFT])
+
+  return (
+    <div ref={box}>
+      <motion.div style={{ opacity, y }}>{children}</motion.div>
+    </div>
+  )
+}
 
 export function Headline({
   lines,
@@ -66,8 +91,7 @@ export function Headline({
   as: Tag = 'h2',
   shown,
   clip = 'line',
-  out,
-  outRange = OUT,
+  exit = false,
 }) {
   const reduce = useReducedMotion()
   const ref = useRef(null)
@@ -83,26 +107,10 @@ export function Headline({
      moment it enters view, and it is the same element either way. */
   const lit = shown ?? inView
   const perWord = clip === 'word'
-
-  /* The hooks run whether or not a caller asked for an exit, since they cannot be
-     conditional, and the stand-in never moves so the transforms sit still. */
-  const still = useMotionValue(0)
-  const leaving = out ?? still
-  const outOpacity = useTransform(leaving, outRange, [1, 0])
-  const outY = useTransform(leaving, outRange, [0, OUT_LIFT])
-
-  /* Motion on the heading itself rather than on a wrapper, so nothing is added to
-     the layout and the exit cannot fight whatever the caller already animates on
-     its own layers: the Works title, for one, has an opacity of its own. */
-  const Root = motion[Tag] ?? motion.h2
   let i = -1
 
-  return (
-    <Root
-      ref={ref}
-      className={className}
-      style={out && !reduce ? { opacity: outOpacity, y: outY } : undefined}
-    >
+  const heading = (
+    <Tag ref={ref} className={className}>
       {lines.map((line, li) => (
         <span
           key={li}
@@ -144,8 +152,14 @@ export function Headline({
           })}
         </span>
       ))}
-    </Root>
+    </Tag>
   )
+
+  /* The exit is a wrapper and not a style on the heading, so it cannot fight what
+     a caller already animates on its own layers: the Works title has an opacity
+     of its own for the teaser's arrival. */
+  if (!exit || reduce) return heading
+  return <Leaving>{heading}</Leaving>
 }
 
 /* ------------------------------------------------------------------

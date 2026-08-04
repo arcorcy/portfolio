@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useScroll,
-} from 'framer-motion'
+import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
 import { experience } from '../data/experience.js'
 import Placeholder from './Placeholder.jsx'
@@ -799,19 +793,11 @@ function Window({ spec, room, zIndex, onFront, onExpand, tip, onRefuse, onRest }
 /* ------------------------------------------------------------------ */
 export default function Experience() {
   const reduce = useReducedMotion()
-  const section = useRef(null)
   const field = useRef(null)
   const browserBox = useRef(null)
   const notesBox = useRef(null)
   const terminalBox = useRef(null)
   const closer = useRef(null)
-
-  /* The whole section crossing the viewport, which is what the title's exit is
-     hung on: it leaves as the section does rather than at a fixed distance. */
-  const { scrollYProgress: leaving } = useScroll({
-    target: section,
-    offset: ['start end', 'end start'],
-  })
 
   const [browserActive, setBrowserActive] = useState(0)
   const [notesActive, setNotesActive] = useState(0)
@@ -945,7 +931,6 @@ export default function Experience() {
   return (
     <section
       id="experience"
-      ref={section}
       /* overflow-x-clip and no justify-center, the same reasons Work's section
          has neither: a drag may overshoot the field on its elastic, and a
          flex-1 field would defeat justify-content before it ever ran, so the
@@ -954,7 +939,7 @@ export default function Experience() {
     >
       <Headline
         lines={experience.title}
-        out={leaving}
+        exit
         className="display-lg mx-auto w-full max-w-[1400px] text-center"
       />
 

@@ -162,7 +162,7 @@ function Nudge({ opacity }) {
   )
 }
 
-function Teaser({ reduce, out }) {
+function Teaser({ reduce }) {
   const home = useRef(null)
   const [geometry, setGeometry] = useState(null)
   const [shown, setShown] = useState(reduce)
@@ -248,14 +248,10 @@ function Teaser({ reduce, out }) {
           data-cursor={live ? 'link' : undefined}
           className="relative block"
         >
-          {/* out goes on the Headline and not on the layer above, which already
-              owns an opacity of its own for the teaser's own arrival. */}
-          <Headline
-            lines={work.title}
-            className="display-lg text-center"
-            shown={shown}
-            out={out}
-          />
+          {/* The exit measures the title's own travel, so nothing has to be
+              passed in and it cannot end up hung on the section's progress, where
+              the title had left the screen long before the range began. */}
+          <Headline lines={work.title} className="display-lg text-center" shown={shown} exit />
           {!reduce && <Nudge opacity={nudge} />}
         </a>
       </motion.div>
@@ -705,7 +701,7 @@ export default function Work() {
       className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:pb-16 lg:pt-32"
     >
       <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Teaser reduce={reduce} out={scrollYProgress} />
+        <Teaser reduce={reduce} />
       </div>
 
       {/* How far a card may travel, which is no longer where it lives.

@@ -90,7 +90,7 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 |---|---|---|
 | Reveal | blocs de contenu | opacity + Y 26px + blur 8px, `once: true`, 0.9s |
 | Headline mask | tous les titres | mot par mot, stagger 55ms. Masque à la ligne par défaut, **au mot** pour Contact dont les phrases s'enroulent |
-| Sortie de titre | Works, Experiences | le titre s'efface et monte de 44px sur la fin de sa section, piloté par le scroll donc réversible en remontant |
+| Sortie de titre | Works, Experiences | le titre s'efface et monte de 44px **en quittant le haut de l'écran**, sur sa propre course et non sur celle de sa section, piloté par le scroll donc réversible en remontant |
 | ScrollWords | How I work | opacité 0.16 → 1 mot par mot, pilotée par la position de scroll (réversible au scroll inverse) |
 | Quadrillage | Works + How I work | 15 colonnes en desktop, plancher de cellule à 48px en dessous. Apparaît en fondu à l'arrivée de Works, disparaît avant la fin de How I work |
 | Constellation | Works | survol : la carte monte à 1,04 et les autres tombent à 10 %. Le texte apparaît collé à la carte, du côté où il y a de la place, et la suit au drag. Dérive au scroll, flottement en boucle, drag contraint au plateau |
