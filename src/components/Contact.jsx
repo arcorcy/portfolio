@@ -1,101 +1,76 @@
-import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Magnetic, EASE } from '../lib/motion.jsx'
+import { Headline, Magnetic, EASE } from '../lib/motion.jsx'
 import { contact, profile } from '../data/content.js'
 
 const OUTLINE =
-  'inline-flex items-center rounded-full border border-white/25 px-6 py-4 text-sm font-bold text-white transition-colors duration-300 hover:border-white hover:bg-white/5'
+  'inline-flex items-center rounded-full border border-white/25 px-7 py-4 text-sm font-bold text-white transition-colors duration-300 hover:border-white hover:bg-white/5'
 
 export default function Contact() {
-  const [copied, setCopied] = useState(false)
-
-  async function copyEmail() {
-    try {
-      await navigator.clipboard.writeText(profile.email)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      window.location.href = `mailto:${profile.email}`
-    }
-  }
-
   return (
-    <footer id="contact" className="gutter bg-ink text-white">
-      <div className="mx-auto w-full max-w-[1400px]">
-        <div className="flex flex-col gap-8 py-10 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-base leading-[1.63] text-white/60">
-            {contact.lead.map((line) => (
-              <span key={line} className="block">
-                {line}
-              </span>
-            ))}
-          </p>
+    /* One screen, and the legal line inside it rather than after it, so the
+       footer is exactly a screen tall and not a screen plus a strip.
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Magnetic strength={0.2}>
-              <a
-                href={`mailto:${profile.email}`}
-                data-cursor="link"
-                className="inline-flex items-center gap-2 rounded-full bg-lime px-7 py-4 text-sm font-bold text-ink transition-transform duration-300 hover:scale-[1.03]"
-              >
-                {profile.email}
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path
-                    d="M3 11L11 3M11 3H5M11 3V9"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </a>
-            </Magnetic>
+       The pitch is centred inside a flex-1 child rather than by justify-center on
+       the footer itself: that is the trap Work and Experience both fell into, a
+       growing child consuming the free space before justify-content has anything
+       left to distribute. Centring inside the child that grows cannot go wrong. */
+    <footer id="contact" className="gutter flex min-h-svh flex-col bg-ink text-white">
+      <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
+        {/* clip="word" because these two lines are long enough to wrap on a
+            laptop, not only on a phone: the line mask would then show a wrapped
+            word on the next line's band before its turn. */}
+        <Headline
+          lines={contact.lead}
+          clip="word"
+          className="display-lg mx-auto max-w-[18em] text-balance"
+        />
 
-            <button type="button" onClick={copyEmail} data-cursor="link" className={OUTLINE}>
-              <motion.span key={copied ? 'y' : 'n'} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                {copied ? 'Copied' : 'Copy address'}
-              </motion.span>
-            </button>
-
+        <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
+          <Magnetic strength={0.2}>
             <a
-              href={profile.linkedin}
-              target="_blank"
-              rel="noreferrer"
+              href={`mailto:${profile.email}`}
               data-cursor="link"
-              className={OUTLINE}
+              className="inline-flex items-center gap-2 rounded-full bg-lime px-7 py-4 text-sm font-bold text-ink transition-transform duration-300 hover:scale-[1.03]"
             >
-              LinkedIn
+              {profile.email}
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path
+                  d="M3 11L11 3M11 3H5M11 3V9"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </a>
-          </div>
-        </div>
+          </Magnetic>
 
-        {/* the name, set large and nearly invisible */}
-        <div className="border-t border-white/10 py-6" aria-hidden="true">
-          <p
-            className="font-semibold leading-none tracking-[-0.05em] text-white/10"
-            style={{ fontSize: 'clamp(2.5rem, 5.5vw, 5rem)' }}
-          >
-            {profile.name}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-10 text-[11px] font-semibold text-white/40">
-          <span>
-            ©{profile.year} {profile.name}
-          </span>
-          <span>
-            {profile.role} · {profile.location}
-          </span>
-          <motion.a
-            href="#top"
+          <a
+            href={profile.linkedin}
+            target="_blank"
+            rel="noreferrer"
             data-cursor="link"
-            whileHover={{ y: -3 }}
-            transition={{ duration: 0.3, ease: EASE }}
-            className="link-swipe text-white"
+            className={OUTLINE}
           >
-            Back to top
-          </motion.a>
+            LinkedIn
+          </a>
         </div>
+      </div>
+
+      {/* The legal line, and nothing else. */}
+      <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 border-t border-white/10 py-6 text-[11px] font-semibold text-white/40">
+        <span>
+          ©{profile.year} {profile.name}
+        </span>
+        <motion.a
+          href="#top"
+          data-cursor="link"
+          whileHover={{ y: -3 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          className="link-swipe text-white"
+        >
+          Back to top
+        </motion.a>
       </div>
     </footer>
   )

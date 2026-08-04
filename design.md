@@ -11,7 +11,7 @@ Les tokens vivent dans `src/index.css` sous `@theme` (Tailwind v4) : c'est la so
 5. **Experiences** (`#experience`) — « Where I have worked » + « And where I learned ».
 6. **Other stuffs** (`#story`) — « I got here the long way » + cartes de faits.
 7. **One more thing** — emplacement réservé, en attente de contenu.
-8. **Contact** (`#contact`) — footer sombre.
+8. **Contact** (`#contact`) — footer sombre, **un écran plein**, centré : le titre en deux phrases, le bouton email et LinkedIn, rien d'autre. La ligne légale est dans cet écran et non après, donc le footer fait exactement une hauteur d'écran.
 
 La nav ne référence que 5 de ces sections : le hero, les témoignages et « One more thing » n'ont pas d'entrée.
 
@@ -114,6 +114,7 @@ Toutes les animations tombent à zéro sous `prefers-reduced-motion: reduce` : l
 
 ## Écarts assumés par rapport à la maquette
 
+- Le footer de la maquette empile une accroche, trois boutons, le nom en très grand et très pâle, puis une ligne légale sur trois colonnes. Il ne garde que l'accroche promue en titre, le bouton email et LinkedIn : c'est la dernière chose lue, elle doit demander une seule action et pas trois. Le nom géant, le bouton « Copy address » et la mention rôle · ville sont supprimés.
 - Le bloc « One more thing » est carré et sans filet dans Paper : on lui met `rounded-card` + `border-line` pour qu'il lise comme un emplacement réservé et non comme un bug de rendu.
 - « And where I learned » est en poids 500 dans Paper contre 600 pour « Where I have worked » : les deux sont alignés sur 600, l'écart ressemblait à une coquille.
 - L'emphase vert-gris `#6F786E` sur « have shipped » est supprimée, comme toutes les emphases.
