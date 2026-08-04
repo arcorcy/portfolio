@@ -35,6 +35,9 @@ export const hero = {
 }
 
 export const work = {
+  /* What the three dead window buttons say when pointed at. They are there to be
+     tried, not to work, and this is the works section answering for its own. */
+  refusal: 'Nice try. Click the window itself.',
   title: ["Things I've shipped"],
 }
 

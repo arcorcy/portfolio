@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
+import { Dots, Draggable, Tip, bounds, useRefusalTip, useStack } from './Window.jsx'
 import { experience } from '../data/experience.js'
 import Placeholder from './Placeholder.jsx'
 
@@ -18,116 +18,6 @@ const freelanceTab = tabs.find((tab) => tab.kind === 'freelance')
 /* Half the shot radius. A browser frame at this size wants a tighter corner than
    a card does, and it is the same halving the case study cover uses. */
 const FRAME_RADIUS = 'rounded-[calc(var(--radius-shot))]'
-
-/* Full screen borrows the case studies' timing exactly, since it is the same
-   move: the surface grows first and the content arrives once it has stopped. */
-const GROW = { duration: 0.55, ease: EASE }
-const COPY_IN = { duration: 0.45, delay: 0.35, ease: EASE }
-const SHUT = { duration: 0.12 }
-
-/* Framer's own drag momentum, at these window sizes, carried a flick clear
-   across the field. Lower power and a shorter time constant than Work's own
-   THROW: a flick still glides, but only a little. */
-const THROW = { power: 0.12, timeConstant: 200, bounceStiffness: 220, bounceDamping: 26 }
-
-/* The same slight lift Work's cards get on hover. */
-const HOVER = { scale: 1.02 }
-
-/* The refusal tip is placed from the button's own box rather than guessed at.
-   TIP_HEIGHT is not a guess either: it is this tip's own box, one line of text-sm
-   at 20px on 2 x 0.5rem of padding, measured at 34px. EDGE is what it keeps off
-   the viewport. */
-const TIP_HEIGHT = 36
-const TIP_GAP = 12
-const EDGE = 8
-
-/* ------------------------------------------------------------------
-   The window buttons. One of the three works.
-
-   The one that works is the one with colour: the lime, as everywhere else on the
-   site. The two that refuse are paper a shade deeper, so they read as switched
-   off rather than as a different kind of button.
-   ------------------------------------------------------------------ */
-const DOTS = [
-  { id: 'close', label: 'Close the window', className: 'bg-paper-deep' },
-  { id: 'minimize', label: 'Minimize the window', className: 'bg-paper-deep' },
-  { id: 'expand', label: 'Open the window full screen', className: 'bg-lime' },
-]
-
-function Dots({ onExpand, onRefuse, onRest }) {
-  return (
-    /* self-center, not the row's items-end: the tabs are flush with the bottom of
-       the strip, the way a browser's are, and the dots sitting on that same line
-       ended up straddling the address bar's border. */
-    <div className="flex shrink-0 items-center gap-1.5 self-center">
-      {DOTS.map((dot) => {
-        const works = dot.id === 'expand'
-
-        return (
-          <button
-            key={dot.id}
-            type="button"
-            aria-label={dot.label}
-            /* The two that refuse say so rather than pretending: aria-disabled
-               keeps them reachable, so the tip can answer a keyboard too. */
-            aria-disabled={works ? undefined : true}
-            data-cursor={works ? 'link' : 'hover'}
-            onClick={works ? onExpand : undefined}
-            onMouseEnter={works ? undefined : onRefuse}
-            onFocus={works ? undefined : onRefuse}
-            onMouseLeave={works ? undefined : onRest}
-            onBlur={works ? undefined : onRest}
-            className={`h-3 w-3 rounded-full transition-transform duration-300 hover:scale-110 ${dot.className}`}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function Tip({ tip }) {
-  const above = tip.side === 'above'
-
-  return (
-    <motion.p
-      /* fixed and outside the window: the frame clips its own corners, and above
-         a button sitting in the chrome is above the window itself. */
-      className="pointer-events-none fixed z-[110] whitespace-nowrap rounded-full bg-ink px-4 py-2 text-sm text-white"
-      style={{
-        left: tip.x,
-        top: tip.y,
-        x: above ? '-50%' : 0,
-        y: above ? '-100%' : '-50%',
-      }}
-      initial={{ opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.15 } }}
-      transition={{ duration: 0.25, ease: EASE }}
-    >
-      {refusal}
-    </motion.p>
-  )
-}
-
-/* Above the button where there is room for it, beside it where there is not.
-   Shared by the three in-flow windows: only one dot can be pointed at a time,
-   so one instance of this is enough for all of them. */
-function useRefusalTip() {
-  const [tip, setTip] = useState(null)
-
-  function onRefuse(event) {
-    const box = event.currentTarget.getBoundingClientRect()
-    const above = box.top >= TIP_HEIGHT + TIP_GAP + EDGE
-
-    setTip({
-      side: above ? 'above' : 'beside',
-      x: above ? box.left + box.width / 2 : box.right + TIP_GAP,
-      y: above ? box.top - TIP_GAP : box.top + box.height / 2,
-    })
-  }
-
-  return { tip, onRefuse, onRest: () => setTip(null) }
-}
 
 /* ------------------------------------------------------------------
    Chrome shared by more than one kind of window
@@ -299,17 +189,17 @@ function Bar({ tab, active, onSelect }) {
   )
 }
 
-function BrowserFrame({ active, onSelect, onExpand, tip, onRefuse, onRest, expanded = false }) {
+function BrowserFrame({ active, onSelect, tip }) {
   const tab = workTabs[active]
 
   return (
     <div
       className={`flex h-full min-h-0 flex-col overflow-hidden border border-line bg-paper ${
-        expanded ? '' : FRAME_RADIUS
+        FRAME_RADIUS
       }`}
     >
-      <div className={`flex items-end gap-3 px-3 pt-2.5 ${expanded ? 'pr-20 sm:pr-24' : ''}`}>
-        <Dots onExpand={onExpand} onRefuse={onRefuse} onRest={onRest} />
+      <div className="flex items-end gap-3 px-3 pt-2.5">
+        <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
         <Tabs active={active} onSelect={onSelect} />
       </div>
 
@@ -322,7 +212,6 @@ function BrowserFrame({ active, onSelect, onExpand, tip, onRefuse, onRest, expan
         <Page tab={tab} compact />
       </div>
 
-      <AnimatePresence>{tip && <Tip tip={tip} />}</AnimatePresence>
     </div>
   )
 }
@@ -330,17 +219,17 @@ function BrowserFrame({ active, onSelect, onExpand, tip, onRefuse, onRest, expan
 /* ------------------------------------------------------------------
    The notes: the two schools, a note list rather than a tab strip.
    ------------------------------------------------------------------ */
-function NotesFrame({ active, onSelect, onExpand, tip, onRefuse, onRest, expanded = false }) {
+function NotesFrame({ active, onSelect, tip }) {
   const tab = schoolTabs[active]
 
   return (
     <div
       className={`flex h-full min-h-0 flex-col overflow-hidden border border-line bg-paper ${
-        expanded ? '' : FRAME_RADIUS
+        FRAME_RADIUS
       }`}
     >
-      <div className={`flex items-end gap-3 px-3 pt-2.5 ${expanded ? 'pr-20 sm:pr-24' : ''}`}>
-        <Dots onExpand={onExpand} onRefuse={onRefuse} onRest={onRest} />
+      <div className="flex items-end gap-3 px-3 pt-2.5">
+        <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
         <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pb-1.5">
           <p className="truncate text-xs font-bold text-mute">Notes</p>
           <Steps length={schoolTabs.length} active={active} onSelect={onSelect} />
@@ -370,7 +259,6 @@ function NotesFrame({ active, onSelect, onExpand, tip, onRefuse, onRest, expande
         </div>
       </div>
 
-      <AnimatePresence>{tip && <Tip tip={tip} />}</AnimatePresence>
     </div>
   )
 }
@@ -400,21 +288,20 @@ function TerminalShell({ tab }) {
   )
 }
 
-function TerminalFrame({ onExpand, tip, onRefuse, onRest, expanded = false }) {
+function TerminalFrame({ tip }) {
   return (
     <div
       className={`flex h-full min-h-0 flex-col overflow-hidden border border-white/10 bg-ink ${
-        expanded ? '' : FRAME_RADIUS
+        FRAME_RADIUS
       }`}
     >
-      <div className={`flex items-end gap-3 px-3 pt-2.5 ${expanded ? 'pr-20 sm:pr-24' : ''}`}>
-        <Dots onExpand={onExpand} onRefuse={onRefuse} onRest={onRest} />
+      <div className="flex items-end gap-3 px-3 pt-2.5">
+        <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
         <p className="min-w-0 flex-1 truncate pb-1.5 text-xs font-bold text-white/60">zsh</p>
       </div>
 
       <TerminalShell tab={freelanceTab} />
 
-      <AnimatePresence>{tip && <Tip tip={tip} />}</AnimatePresence>
     </div>
   )
 }
@@ -435,23 +322,6 @@ function TerminalFrame({ onExpand, tip, onRefuse, onRest, expanded = false }) {
    with should not invite the thumb.
    ------------------------------------------------------------------ */
 
-/* All three buttons are paper-deep on a phone, the lime one included. On the
-   desktop windows the lime earns the accent by being the only one of the three
-   that does something; here nothing opens, and a lime dot that does nothing is
-   only a fifth place the accent turns up. */
-function Buttons({ dark = false }) {
-  return (
-    <div className="flex shrink-0 items-center gap-1.5" aria-hidden="true">
-      {DOTS.map((dot) => (
-        <span
-          key={dot.id}
-          className={`h-2.5 w-2.5 rounded-full ${dark ? 'bg-white/20' : 'bg-paper-deep'}`}
-        />
-      ))}
-    </div>
-  )
-}
-
 /* The window: a title bar holding the three buttons and whatever the app puts
    beside them, then the app's own surface. Height comes from the content, and
    every paragraph inside is clamped, which is what keeps the tallest of them
@@ -464,7 +334,7 @@ function Sheet({ head, dark = false, children }) {
       }`}
     >
       <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <Buttons dark={dark} />
+        <Dots dark={dark} />
         {head}
       </div>
       {children}
@@ -715,81 +585,6 @@ function Flat({ reduce }) {
   )
 }
 
-/* Where the surface grows from, as the transform that puts a full screen box
-   back onto the window it came from. The same measured flip the case studies
-   use: the window sits under a drag transform, which a layout animation
-   cannot see. */
-function flip(rect) {
-  if (!rect) return { x: 0, y: 0, scaleX: 1, scaleY: 1 }
-  return {
-    x: rect.left,
-    y: rect.top,
-    scaleX: rect.width / window.innerWidth,
-    scaleY: rect.height / window.innerHeight,
-  }
-}
-
-/* How far a window may be carried, as pixel offsets from where it sits.
-
-   An object rather than the field ref, even though this section no longer
-   scrolls: given a ref, Framer measures the field's page box once at mount and
-   three windows placed by percentage of that same box came out clamped into a
-   cluster around its centre, each pushed 20 to 250px off the spot its left/top
-   actually says. offsetLeft and clientWidth, read after layout has settled, do
-   not have that problem, and this is the same fix the old sticky window used.
-
-   The Math.min(0, …) / Math.max(0, …) keep zero inside the interval whatever the
-   field measures, so a viewport short enough that a window is taller than the
-   field cannot produce a range with its ends crossed, which Framer would answer
-   by snapping the window off its own spot. */
-function bounds(field, win) {
-  return {
-    left: Math.min(0, -win.offsetLeft),
-    right: Math.max(0, field.clientWidth - win.offsetLeft - win.offsetWidth),
-    top: Math.min(0, -win.offsetTop),
-    bottom: Math.max(0, field.clientHeight - win.offsetTop - win.offsetHeight),
-  }
-}
-
-/* One window, positioned by the percentage point its centre sits at and pulled
-   back by half its own fixed size to land there: the same anchoring Work's
-   cards use, kept off the drag layer's x/y so the two transforms never fight.
-   zIndex is the resting order, owned by the parent: whichever window was last
-   dragged, of any of the three, sits above the other two until another is. */
-function Window({ spec, room, zIndex, onFront, onExpand, tip, onRefuse, onRest }) {
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
-
-  return (
-    <motion.div
-      ref={spec.ref}
-      drag
-      dragConstraints={room ?? false}
-      dragElastic={0.16}
-      dragMomentum
-      dragTransition={THROW}
-      onDragStart={onFront}
-      whileHover={HOVER}
-      transition={{ duration: 0.4, ease: EASE }}
-      data-cursor="hover"
-      style={{
-        left: spec.left,
-        top: spec.top,
-        width: spec.width,
-        height: spec.height,
-        marginLeft: `calc(${spec.width} * -0.5)`,
-        marginTop: `calc(${spec.height} * -0.5)`,
-        zIndex,
-        x: dragX,
-        y: dragY,
-      }}
-      className={`absolute cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS}`}
-    >
-      {spec.render({ onExpand, tip, onRefuse, onRest })}
-    </motion.div>
-  )
-}
-
 /* ------------------------------------------------------------------ */
 export default function Experience() {
   const reduce = useReducedMotion()
@@ -797,71 +592,14 @@ export default function Experience() {
   const browserBox = useRef(null)
   const notesBox = useRef(null)
   const terminalBox = useRef(null)
-  const closer = useRef(null)
 
   const [browserActive, setBrowserActive] = useState(0)
   const [notesActive, setNotesActive] = useState(0)
-  /* Resting order of the three windows. Starts as the default arrangement
-     (browser in front, terminal in the middle, notes at the back); whichever
-     one is dragged, of any of the three, is brought above the other two and
-     stays there once let go, until another one is dragged. */
-  const [zOrder, setZOrder] = useState({ work: 30, freelance: 20, school: 10 })
-  const topZ = useRef(30)
-
-  function bringToFront(kind) {
-    topZ.current += 1
-    setZOrder((order) => ({ ...order, [kind]: topZ.current }))
-  }
-
-  // Which window is full screen, or none. The rect it grows from is caught at
-  // the click, not recomputed: it is where that window was when it was opened,
-  // drag included.
-  const [openKind, setOpenKind] = useState(null)
-  const [from, setFrom] = useState(null)
+  /* The resting order: browser in front, terminal in the middle, notes at the
+     back. Whichever one is picked up goes above the other two and stays there. */
+  const { order, bringToFront } = useStack({ work: 30, freelance: 20, school: 10 })
   const [room, setRoom] = useState({})
-
-  const flow = useRefusalTip()
-  const full = useRefusalTip()
-
-  const expanded = openKind !== null
-
-  function onExpand(kind, ref) {
-    setFrom(ref.current?.getBoundingClientRect() ?? null)
-    setOpenKind(kind)
-  }
-
-  /* Held here rather than in the overlay, and keyed on intent: AnimatePresence
-     keeps the overlay mounted until its exit finishes, so an exit interrupted
-     halfway would otherwise leave the page locked and unreachable. */
-  useEffect(() => {
-    if (!expanded) return undefined
-    const root = document.getElementById('root')
-    const html = document.documentElement
-    const wasOverflow = html.style.overflow
-    const wasPadding = html.style.paddingRight
-    const bar = window.innerWidth - html.clientWidth
-
-    html.style.overflow = 'hidden'
-    if (bar > 0) html.style.paddingRight = `${bar}px`
-    root?.setAttribute('inert', '')
-
-    return () => {
-      html.style.overflow = wasOverflow
-      html.style.paddingRight = wasPadding
-      root?.removeAttribute('inert')
-    }
-  }, [expanded])
-
-  useEffect(() => {
-    if (!expanded) return undefined
-    closer.current?.focus()
-
-    function onKey(e) {
-      if (e.key === 'Escape') setOpenKind(null)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [expanded])
+  const tip = useRefusalTip()
 
   /* Percentages of the field for the centre of each window, pulled back by half
      its own fixed size to land there: the field's own size still decides how
@@ -877,7 +615,7 @@ export default function Experience() {
       top: '48%',
       width: '40.25rem',
       height: '34.5rem',
-      render: (props) => <BrowserFrame active={browserActive} onSelect={setBrowserActive} {...props} />,
+      render: () => <BrowserFrame active={browserActive} onSelect={setBrowserActive} tip={tip} />,
     },
     {
       kind: 'school',
@@ -887,7 +625,7 @@ export default function Experience() {
       top: '42%',
       width: '33.5rem',
       height: '27.5rem',
-      render: (props) => <NotesFrame active={notesActive} onSelect={setNotesActive} {...props} />,
+      render: () => <NotesFrame active={notesActive} onSelect={setNotesActive} tip={tip} />,
     },
     {
       kind: 'freelance',
@@ -897,7 +635,7 @@ export default function Experience() {
       top: '25%',
       width: '34.5rem',
       height: '23rem',
-      render: (props) => <TerminalFrame {...props} />,
+      render: () => <TerminalFrame tip={tip} />,
     },
   ]
 
@@ -955,93 +693,28 @@ export default function Experience() {
         }`}
       >
         {windows.map((spec) => (
-          <Window
+          <Draggable
             key={spec.kind}
-            spec={spec}
+            innerRef={spec.ref}
+            left={spec.left}
+            top={spec.top}
+            width={spec.width}
+            height={spec.height}
             room={room[spec.kind]}
-            zIndex={zOrder[spec.kind]}
+            zIndex={order[spec.kind]}
             onFront={() => bringToFront(spec.kind)}
-            onExpand={() => onExpand(spec.kind, spec.ref)}
-            tip={flow.tip}
-            onRefuse={flow.onRefuse}
-            onRest={flow.onRest}
-          />
+          >
+            {spec.render()}
+          </Draggable>
         ))}
+
+        <AnimatePresence>
+          {tip.tip && <Tip tip={tip.tip}>{refusal}</Tip>}
+        </AnimatePresence>
       </div>
 
       <Flat reduce={reduce} />
 
-      {createPortal(
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Experience, full screen"
-              className="fixed inset-0 z-[100] origin-top-left"
-              initial={reduce ? { opacity: 0 } : flip(from)}
-              animate={reduce ? { opacity: 1 } : { x: 0, y: 0, scaleX: 1, scaleY: 1 }}
-              exit={reduce ? { opacity: 0 } : flip(from)}
-              transition={reduce ? { duration: 0.2 } : GROW}
-            >
-              <motion.div
-                className="h-full"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: SHUT }}
-                transition={COPY_IN}
-              >
-                {openKind === 'work' && (
-                  <BrowserFrame
-                    expanded
-                    active={browserActive}
-                    onSelect={setBrowserActive}
-                    tip={full.tip}
-                    onRefuse={full.onRefuse}
-                    onRest={full.onRest}
-                  />
-                )}
-                {openKind === 'school' && (
-                  <NotesFrame
-                    expanded
-                    active={notesActive}
-                    onSelect={setNotesActive}
-                    tip={full.tip}
-                    onRefuse={full.onRefuse}
-                    onRest={full.onRest}
-                  />
-                )}
-                {openKind === 'freelance' && (
-                  <TerminalFrame expanded tip={full.tip} onRefuse={full.onRefuse} onRest={full.onRest} />
-                )}
-              </motion.div>
-
-              <motion.button
-                ref={closer}
-                type="button"
-                onClick={() => setOpenKind(null)}
-                aria-label="Leave full screen"
-                data-cursor="link"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                transition={COPY_IN}
-                className="fixed right-5 top-5 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white transition-colors duration-300 hover:bg-ink/80 sm:right-8 sm:top-8"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M4 4l8 8M12 4l-8 8"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
     </section>
   )
 }

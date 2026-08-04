@@ -11,30 +11,25 @@
  * study    : the case study opened by clicking the card. Absent means the card
  *            is not clickable.
  *
- * Layout — the card sits on a coloured mat, and where it sits is part of the
- * design rather than something the code works out:
- * mat      : a key in Work.jsx's MAT map, one colour token per project.
- * crop     : a key in Work.jsx's CROP map, deciding which corner of the cover is
- *            the one guaranteed to survive. Optional, and 'top' when left out,
- *            which centres horizontally and cuts both sides evenly. 'left-top'
- *            pins the top left instead and puts the whole cut on the right,
- *            which is what an interface wants: its sidebar and its header are
- *            the part that says what the thing is, and a panel down the right
- *            edge is the part that can go.
- * zoom     : how far to crop into the cover, 1 or absent meaning not at all.
- *            object-cover alone barely crops here: a 16/9 shot in the card's
- *            1.666 box already shows 93.7% of its width, so `crop` only decides
- *            where that 6.3% comes off. A screenshot of a whole interface is
- *            unreadable at card size, and this is what lets one be cropped into
- *            until it reads. Anchored on the same corner as `crop`.
- * x / y    : centre of the card, as a percentage of the stage.
- * size     : its width, as a percentage of the stage width.
- * rot      : degrees. Uneven on purpose, dropped rather than aligned.
- * drift    : how far it travels vertically across the section's scroll, as a
- *            percentage of the card's own height. A percentage and not pixels
- *            on purpose: it keeps the travel proportional at every stage size,
- *            which is what makes the containment hold on a small laptop as
- *            well as a wide screen. The sign decides whether it leads or lags.
+ * Layout — the window sits on the stage, and where it sits is part of the design
+ * rather than something the code works out:
+ * chrome   : which frame the shot is shown in, a key in Work.jsx's CHROME map.
+ *            'macos' and 'browser' are drawn here; 'none' is for a shot that
+ *            already carries its own header, which two of these do.
+ * label    : the short name the drawn chrome puts in its title bar. The long
+ *            `title` is the headline beside the window, not a window title.
+ * url      : what a 'browser' chrome shows in its address bar. null prints the
+ *            same "to fill in" placeholder the experience tabs use.
+ * x / y    : the window's top left corner, as a percentage of the stage. Its top
+ *            left and not its centre, unlike an experience window: those carry a
+ *            height in the data, these take theirs from a shot that is never
+ *            cropped, so there is no half height to give back.
+ * size     : its width, as a percentage of the stage width. The height follows,
+ *            so a window stands roughly size * 1.778 / (the shot's ratio) percent
+ *            of the stage's height, plus about 6 where a bar is drawn. Worth
+ *            working out before moving one: the square CEVA shot is nearly twice
+ *            as tall as it is wide in those units, and the first arrangement ran
+ *            246px off the bottom of the stage.
  */
 
 /* The plugin's own interface, used twice: the card cover in Works and the banner
@@ -123,12 +118,13 @@ export const projects = [
     subtitle: 'Internal tool',
     cover: variableGenerator,
     link: null,
-    mat: 'pink',
-    x: 25,
-    y: 31,
-    size: 40,
-    rot: -7,
-    drift: 6,
+    /* The shot is the plugin dialog and already has the header Figma puts on one,
+       so drawing another would be two headers deep. This is what was asked for:
+       just the small header from the Figma interface. */
+    chrome: 'none',
+    x: 2,
+    y: 4,
+    size: 30,
   },
   {
     id: 'project-02',
@@ -137,12 +133,12 @@ export const projects = [
     subtitle: 'Client name',
     cover: emeis,
     link: null,
-    mat: 'orange',
-    x: 74,
-    y: 29,
-    size: 38,
-    rot: 4,
-    drift: -6,
+    // A website, so a browser. Its address is still to come.
+    chrome: 'browser',
+    url: null,
+    x: 52,
+    y: 3,
+    size: 34,
   },
   {
     id: 'project-03',
@@ -151,12 +147,11 @@ export const projects = [
     subtitle: 'Client name',
     cover: ceva,
     link: null,
-    mat: 'blue',
-    x: 27,
-    y: 70,
-    size: 39,
-    rot: 6,
-    drift: -7,
+    // This shot already opens on a macOS title bar of its own.
+    chrome: 'none',
+    x: 10,
+    y: 48,
+    size: 26,
   },
   {
     id: 'indes-pilot',
@@ -164,19 +159,12 @@ export const projects = [
     title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
     cover: indesPilot,
-    /* The only cover that is a full interface edge to edge, and the only one that
-       has to be cropped into to read: at card size the whole screen is a grey
-       texture. Pinned top left and taken in to about the left two thirds, so the
-       sidebar, the header and the first rows carry it while the waiting-spots
-       panel down the right edge takes the cut. */
-    crop: 'left-top',
-    zoom: 1.4,
     link: null,
-    mat: 'sand',
-    x: 73,
-    y: 69.5,
-    size: 41,
-    rot: -5,
-    drift: 6,
+    // A bare interface with no frame of its own, so it gets a plain one.
+    chrome: 'macos',
+    label: 'Indés Pilot',
+    x: 50,
+    y: 52,
+    size: 38,
   },
 ]

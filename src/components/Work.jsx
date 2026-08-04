@@ -1,66 +1,40 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   AnimatePresence,
-  animate,
   motion,
-  useMotionValue,
   useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
-  useVelocity,
 } from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
+import { Dots, Draggable, Tip, bounds, useRefusalTip, useStack, FRAME_RADIUS } from './Window.jsx'
 import { work } from '../data/content.js'
 import { projects } from '../data/projects.js'
 import Arrow from './Arrow.jsx'
 import Placeholder from './Placeholder.jsx'
 import Study from './Study.jsx'
 
-/* One colour token per project. Written out as whole class names so Tailwind
-   sees them: a template string would generate nothing. */
-const MAT = {
-  pink: 'bg-mat-pink',
-  orange: 'bg-mat-orange',
-  blue: 'bg-mat-blue',
-  sand: 'bg-mat-sand',
-}
-
-/* Which corner of a cover survives the crop, keyed off the project. Whole class
-   names again, for the same reason as the mats.
-
-   The default centres and takes the same sliver off both sides, which is right
-   for a cover with its subject in the middle. An interface has its subject in the
-   corner: the sidebar and the header are what say what the thing is, so pinning
-   the top left puts the whole cut on the right, where a side panel can go. */
-const CROP = {
-  top: 'object-top',
-  'left-top': 'object-left-top',
-}
-
-/* How far the cover runs past the card's bottom right corner. The mat rounds that
-   corner and clips to it, so a cover stopping exactly on the edge leaves the
-   round corner cutting across a square one and a sliver of mat shows through.
-   Sending it a little further means the clip falls entirely inside the image and
-   the corner reads as the card's own. Bigger than the 24px radius, so it clears
-   the whole arc rather than most of it. */
-const BLEED = '2rem'
-
-// How far a card is pushed back while another one holds the attention.
+// How far a window is pushed back while another one holds the attention.
 const DIMMED = 0.1
 
-/* At least 24px between a card and its copy, asked for explicitly, and the
-   measurement that counts is against the card's leaning edge rather than its
-   bounding box. The copy is up to 244px tall and centred on the card, so a
-   7 degree tilt pulls the edge some 15px closer at one end of that block than
-   at the middle: the offset has to pay for the tilt as well as the 24px. */
+/* The resting stack, in the order the data lists them, so the last project starts
+   on top. Whichever window is picked up goes above the rest and stays there. */
+const REST_ORDER = Object.fromEntries(projects.map((project, i) => [project.id, 10 + i]))
+
+/* The strip has no pointer to answer, so its frames are handed a tip that does
+   nothing rather than a live one: the buttons are still drawn, and still refuse. */
+const INERT_TIP = { onRefuse: undefined, onRest: undefined }
+
+/* At least 24px between a window and its copy, and the measurement that counts is
+   against the frame's edge. */
 const COPY_GAP = 44
 const COPY_WIDTH = 82
 
-/* The copy is anchored past the card's right edge and slides to the left side
-   when it needs to. The whole distance is the card, the copy and both gaps, and
-   it can be written without measuring anything: the copy is COPY_WIDTH percent
-   of the card, so the card is that ratio's inverse in units of the copy. Only
+/* The copy is anchored past the window's right edge and slides to the left side
+   when it needs to. The whole distance is the window, the copy and both gaps, and
+   it can be written without measuring anything: the copy is COPY_WIDTH percent of
+   the window, so the window is that ratio's inverse in units of the copy. Only
    the two gaps are pixels, which is why the travel ends up as a calc. */
 const FLIP_SPAN = 100 + (100 / COPY_WIDTH) * 100
 
@@ -68,69 +42,9 @@ function flipX(t) {
   return `calc(${(-FLIP_SPAN * t).toFixed(3)}% - ${(2 * COPY_GAP * t).toFixed(1)}px)`
 }
 
-/* The physics. Nothing here is a real simulation: a spring on the position
-   gives the lag and the small overshoot that read as weight, and mapping how
-   fast a card is travelling onto a rotation gives the tilt of something being
-   carried or thrown. Both are clamped, because a fast flick should lean, not
-   spin. */
-const GLIDE = { stiffness: 55, damping: 16, mass: 0.9 }
-const LEAN = { stiffness: 120, damping: 13, mass: 0.7 }
-const THROW = { power: 0.3, timeConstant: 340, bounceStiffness: 170, bounceDamping: 22 }
-const SETTLE = { stiffness: 70, damping: 17, mass: 1.1 }
+/* The side swap is a spring rather than a piece of state, so it slides instead of
+   jumping and no render happens while a window crosses the middle. */
 const FLIP = { stiffness: 130, damping: 20, mass: 0.9 }
-
-// Degrees of lean per unit of speed: px/s while dragging, percent/s on scroll.
-const DRAG_LEAN = 0.0055
-const DRAG_LEAN_MAX = 9
-const SCROLL_LEAN = 0.08
-const SCROLL_LEAN_MAX = 4
-
-/* How much of a throw a card keeps once it stops. The resting angle is not a
-   constant: move a card and it comes to rest a little further left or right
-   than it started, the way a real object would. Clamped so a card that gets
-   pushed around all afternoon still reads as the same card. */
-const KEPT_LEAN = 0.0022
-const KEPT_LEAN_MAX = 4.5
-
-function clamp(v, limit) {
-  return Math.max(-limit, Math.min(limit, v))
-}
-
-/* ------------------------------------------------------------------
-   Is the constellation the layout on screen?
-
-   Below lg the field is display:none and the slider takes over. A box of no size
-   is the whole cause of the pile: Framer resolves dragConstraints against the
-   field, and on a resize it puts anything outside them back inside, so four
-   cards clamped into nothing all arrive at the same point and the constellation
-   comes back as a stack in the middle. Reproduced by measuring: loaded straight
-   at 1440 every card sits at transform none, and after one trip under 1024 they
-   carry translations of 200px and more towards the centre.
-
-   So the constraints are handed over only while the field is really there, and
-   the cards ease back to their own positions on the way in.
-   ------------------------------------------------------------------ */
-const WIDE = '(min-width: 64rem)'
-
-/* Long and soft: this is a layout finding itself again, not a card being thrown,
-   and the point of easing it at all is that the arrangement should be seen to
-   come back rather than appear to have always been right. */
-const REGATHER = { duration: 1.1, ease: EASE }
-
-function useWide() {
-  const [wide, setWide] = useState(true)
-
-  useEffect(() => {
-    const query = window.matchMedia(WIDE)
-    const read = () => setWide(query.matches)
-
-    read()
-    query.addEventListener('change', read)
-    return () => query.removeEventListener('change', read)
-  }, [])
-
-  return wide
-}
 
 /* ------------------------------------------------------------------
    The title, which starts life as a teaser at the foot of the hero: it
@@ -280,66 +194,71 @@ function Teaser({ reduce }) {
 }
 
 /* ------------------------------------------------------------------
-   The card itself: a cover on a coloured mat, cropped flush at the
-   bottom so it reads as a window rather than a framed picture.
+   The frame a shot is shown in.
+
+   Two of the four shots already open on a header of their own, the Figma plugin
+   dialog on Figma's and the CEVA file on a macOS one, so those are framed with
+   nothing but a rounded corner: drawing a second header over them would be two
+   headers deep. The other two get one drawn here, which is what `chrome` in the
+   data picks.
+
+   The shot is never cropped. Its own proportions decide the window's height,
+   which is why nothing here sets one and why the data no longer carries a mat, a
+   crop or a zoom: the frame is the container now.
    ------------------------------------------------------------------ */
-function Cover({ project, index, lifted }) {
+function MacBar({ project, tip }) {
+  return (
+    <div className="flex items-center gap-2.5 border-b border-line bg-paper px-3 py-2.5">
+      <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
+      <p className="min-w-0 flex-1 truncate text-xs font-bold text-mute">
+        {project.label ?? project.subtitle}
+      </p>
+    </div>
+  )
+}
+
+function BrowserBar({ project, tip }) {
+  return (
+    <div className="flex items-center gap-2.5 border-b border-line bg-paper px-3 py-2.5">
+      <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
+      <div className="flex min-w-0 flex-1 rounded-full bg-white px-2.5 py-1">
+        <p className="min-w-0 truncate text-[11px] text-mute">
+          {project.url ?? <span className="italic">url to fill in</span>}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const CHROME = { macos: MacBar, browser: BrowserBar }
+
+function Frame({ project, index, tip, lifted }) {
+  const Bar = CHROME[project.chrome]
+
   return (
     <div
-      /* The mat is a margin on two sides only, the top and the left, so the
-         cover is anchored into the card's bottom right corner and runs off both
-         of those edges. It used to be padded on the right as well, which framed
-         the shot on three sides and read as a picture parked in a frame rather
-         than as a window onto something larger.
-
-         Two shadows, and the gap between them is the point: just enough at rest
-         to tell which card is over which, then a real lift under the one being
-         pointed at. Both alpha and blur roughly double on hover, so the change
-         reads as the card coming up rather than as the shadow getting darker. */
-      className={`h-full w-full overflow-hidden rounded-shot pl-[6%] pt-[6%] transition-shadow duration-500 ${
-        MAT[project.mat]
-      } ${
+      /* Two shadows, and the gap between them is the point: just enough at rest
+         to tell which window is over which, then a real lift under the one being
+         pointed at. */
+      className={`overflow-hidden border border-line bg-white transition-shadow duration-500 ${FRAME_RADIUS} ${
         lifted
           ? 'shadow-[0_20px_48px_-24px_rgba(1,1,2,0.22)]'
           : 'shadow-[0_8px_22px_-14px_rgba(1,1,2,0.1)]'
       }`}
     >
-      {/* Rounded on the one corner that is still inside the card. The other three
-          sit on or past an edge, and the bottom right is pushed a little past it
-          by BLEED so the mat's own radius can never show through as a sliver of
-          colour where a square corner meets a round one. */}
-      <div
-        className="overflow-hidden rounded-tl-[10px] bg-white"
-        style={{ width: `calc(100% + ${BLEED})`, height: `calc(100% + ${BLEED})` }}
-      >
-        {project.cover ? (
-          <img
-            src={project.cover}
-            alt={project.title}
-            className={`h-full w-full object-cover ${CROP[project.crop] ?? CROP.top}`}
-            /* The zoom crops into the cover, which object-cover on its own cannot:
-               a 16/9 shot in this 1.666 box already shows 93.7% of its width, so
-               choosing where that 6.3% comes off is the only say the crop has. An
-               interface needs more than that, hence a scale, anchored on the same
-               corner the crop is so the two cannot disagree.
-
-               An inline style rather than a Tailwind class, as everywhere else a
-               transform is computed here, and on the image itself, which is the
-               one layer of the card that owns no transform yet. */
-            style={
-              project.zoom
-                ? {
-                    transform: `scale(${project.zoom})`,
-                    transformOrigin: project.crop === 'left-top' ? 'left top' : 'center top',
-                  }
-                : undefined
-            }
-            draggable={false}
-          />
-        ) : (
-          <Placeholder seed={index} className="h-full w-full" />
-        )}
-      </div>
+      {Bar && <Bar project={project} tip={tip} />}
+      {project.cover ? (
+        <img
+          src={project.cover}
+          alt={project.title}
+          /* block, so no baseline gap under it, and no height: the shot keeps its
+             own proportions and the window takes them. */
+          className="block w-full"
+          draggable={false}
+        />
+      ) : (
+        <Placeholder seed={index} className="aspect-[16/10] w-full" />
+      )}
     </div>
   )
 }
@@ -354,109 +273,45 @@ function Copy({ project, className = '' }) {
 }
 
 /* ------------------------------------------------------------------
-   One scattered card. Four nested layers, each the single owner of its
-   transform: the drag, the scroll drift, the idle float, then the hover
-   state. Sharing a layer is what makes these fight each other.
+   One window on the stage.
 
-   The copy is a child of the drag layer and sits just beside the card, so
-   it travels with it and the link between the two is never in doubt. It
-   stays outside the drift, float and hover layers: text that bobs and
-   scales is text nobody reads.
+   The behaviour is the shared one, the same as the experiences: dragged inside the
+   field, a little momentum, a small lift under the pointer, and it stays on top
+   once it has been picked up. Nothing rotates, floats or drifts with the scroll
+   any more, and there is no lean on a throw: a window is an object on a desk.
+
+   Anchored by its top left rather than its centre, unlike an experience window.
+   Those have a height in the data; these take theirs from a shot that is never
+   cropped, so there is no half-height to give back and nothing to measure.
+
+   The copy is a child of the drag layer and sits just beside the window, so it
+   travels with it and the link between the two is never in doubt. It stays out of
+   the hover layer: text that scales is text nobody reads.
    ------------------------------------------------------------------ */
-function Card({
-  project,
-  index,
-  field,
-  progress,
-  active,
-  dim,
-  onEnter,
-  onLeave,
-  onOpen,
-  reduce,
-  wide,
-  z,
-  onFront,
-}) {
+function Card({ project, index, field, spot, room, active, dim, onEnter, onLeave, onOpen, tip, z, onFront }) {
   const ref = useRef(null)
-  /* The innermost layer is the one to measure: the drag layer's box is the
-     card's untransformed footprint, while the rotation and the drift live on
-     children, so only this rect is what the eye actually sees. */
-  const visual = useRef(null)
   // A drag ends in a click too. Framer only fires onDragStart past its
   // threshold, so this stays false for a plain press.
   const dragged = useRef(false)
   const geometry = useRef(null)
-  const settled = useRef(project.x <= 50 ? 'right' : 'left')
-  /* A card being dragged has to sit above every other one. Hover alone was not
-     enough: move fast and the pointer leaves the card, which drops it back into
-     the pile mid-throw. */
-  const [held, setHeld] = useState(false)
+  const settled = useRef(project.x + project.size / 2 <= 50 ? 'right' : 'left')
 
-  /* The drag writes into these rather than into values Framer keeps to itself,
-     which is what lets the lean below read how fast the card is moving. */
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
-
-  /* Coming back to the constellation, a card goes home rather than staying where
-     a stale clamp left it, and it is eased there because zero is its arrangement:
-     the percentage left/top are the design, and an offset of nothing is what puts
-     the card on them. Nothing runs on the way out, and nothing runs while the
-     width merely changes inside the breakpoint, so a card someone has carried
-     somewhere stays carried. */
-  useEffect(() => {
-    if (!wide) return undefined
-    const back = [animate(dragX, 0, REGATHER), animate(dragY, 0, REGATHER)]
-    return () => back.forEach((run) => run.stop())
-  }, [wide, dragX, dragY])
-
-  /* Percentages, not pixels: a percentage translation resolves against the
-     card's own height, so the drift and the float both stay in proportion at
-     any stage size. That is what keeps a card inside the section on a small
-     laptop, where a fixed pixel travel would be half again as large.
-
-     Kept numeric all the way through the spring, because velocity cannot be
-     read off a value that is already a string, and only turned into a
-     percentage at the last step. */
-  const driftTo = useTransform(progress, [0, 1], [project.drift, -project.drift])
-  const drifting = useSpring(driftTo, GLIDE)
-  const drift = useTransform(drifting, (v) => `${v}%`)
-
-  const carried = useSpring(
-    useTransform(useVelocity(dragX), (v) => clamp(v * DRAG_LEAN, DRAG_LEAN_MAX)),
-    LEAN,
-  )
-  const scrolled = useTransform(useVelocity(drifting), (v) =>
-    clamp(v * SCROLL_LEAN, SCROLL_LEAN_MAX),
-  )
-  /* What the card keeps of the last throw, on top of its starting angle. The
-     target is tracked separately because a spring reports where it currently
-     is, not where it is heading, and clamping against a value still in flight
-     would let a card thrown again mid-settle drift past the limit. */
-  const kept = useSpring(0, SETTLE)
-  const keptTo = useRef(0)
-  const lean = useTransform([carried, scrolled, kept], ([a, b, c]) => a + b + c)
-
-  /* The side the copy sits on is a spring between two ends rather than a piece
-     of state, so the swap slides instead of jumping and no render happens while
-     a card is being dragged across the middle. */
   const flip = useSpring(settled.current === 'right' ? 0 : 1, FLIP)
   const copyX = useTransform(flip, flipX)
-  // A dip through the middle of the crossing, where the copy passes the card.
+  // A dip through the middle of the crossing, where the copy passes the window.
   const crossing = useTransform(flip, [0, 0.5, 1], [1, 0.45, 1])
 
   /* Which side the copy sits on is decided against the middle of the field, and
-     rechecked while the card is dragged: carry a left card over to the right and
+     rechecked while the window is dragged: carry a left one over to the right and
      its copy moves round rather than running off the edge. Measured once per
      drag, not once per frame. */
   function onDragStart() {
-    setHeld(true)
     onFront()
     dragged.current = true
     if (!ref.current || !field.current) return
-    const card = ref.current.getBoundingClientRect()
+    const win = ref.current.getBoundingClientRect()
     const box = field.current.getBoundingClientRect()
-    geometry.current = { centre: card.left + card.width / 2, middle: box.left + box.width / 2 }
+    geometry.current = { centre: win.left + win.width / 2, middle: box.left + box.width / 2 }
   }
 
   function pick(next) {
@@ -470,103 +325,54 @@ function Card({
     pick(info.offset.x + geometry.current.centre <= geometry.current.middle ? 'right' : 'left')
   }
 
-  function onDragEnd(_, info) {
-    keptTo.current = clamp(keptTo.current + info.velocity.x * KEPT_LEAN, KEPT_LEAN_MAX)
-    kept.set(keptTo.current)
-  }
-
-  /* The card keeps gliding after it is released, and onDrag has stopped firing
-     by then, so a card thrown across the middle would keep the copy on its old
-     side. Measured again once the glide has settled. */
+  /* The window keeps gliding after it is released and onDrag has stopped firing,
+     so one thrown across the middle would keep its copy on the old side.
+     Measured again once the glide has settled. */
   function onDragTransitionEnd() {
-    setHeld(false)
     if (!ref.current || !field.current) return
-    const card = ref.current.getBoundingClientRect()
+    const win = ref.current.getBoundingClientRect()
     const box = field.current.getBoundingClientRect()
-    pick(card.left + card.width / 2 <= box.left + box.width / 2 ? 'right' : 'left')
+    pick(win.left + win.width / 2 <= box.left + box.width / 2 ? 'right' : 'left')
   }
 
   return (
-    <motion.div
-      ref={ref}
-      className="absolute cursor-grab active:cursor-grabbing"
-      style={{
-        left: `${project.x}%`,
-        top: `${project.y}%`,
-        width: `${project.size}%`,
-        /* The data places a card by its centre, so it gives half of itself
-           back. Margin percentages both resolve against the containing
-           block's width, which is the stage: half the width is size/2, and
-           half the height is size/2 divided by the 17/10 ratio. */
-        marginLeft: `${-project.size / 2}%`,
-        marginTop: `${-project.size / 3.4}%`,
-        /* Three bands, wide apart so one can never bleed into the next: a card
-           being carried right now outranks one merely pointed at, which
-           outranks the resting order. z is that resting order, and it is the
-           one that persists once the card is let go: whichever card was last
-           dragged, of any of them, sits above the rest until another is. */
-        zIndex: held ? 1000 : active ? 500 : z,
-        x: dragX,
-        y: dragY,
+    <Draggable
+      innerRef={(el) => {
+        ref.current = el
+        spot(el)
       }}
-      /* dragConstraints on the field is the guarantee, momentum included: throw a
-         card and it carries, then settles back inside rather than being lost off
-         screen. The field is not the card's containing block, which is the stage,
-         and does not need to be: Framer measures the page box of whatever ref it
-         is given and compares it with the card's own. */
-      drag={!reduce}
-      /* Only while the field has a size. Handed a hidden one, Framer clamps every
-         card into a box of nothing and the constellation returns as a pile. */
-      dragConstraints={wide ? field : false}
-      dragElastic={0.16}
-      dragMomentum={!reduce}
-      dragTransition={THROW}
-      onDragStart={onDragStart}
+      anchor="topLeft"
+      left={`${project.x}%`}
+      top={`${project.y}%`}
+      width={`${project.size}%`}
+      room={room}
+      zIndex={active ? 500 : z}
+      onFront={onFront}
+      onEnter={onEnter}
+      onLeave={onLeave}
       onDrag={onDrag}
-      onDragEnd={onDragEnd}
+      onDragStart={onDragStart}
       onDragTransitionEnd={onDragTransitionEnd}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
+      cursor={project.study ? 'link' : 'hover'}
       onClick={() => {
         if (dragged.current) {
           dragged.current = false
           return
         }
-        if (project.study && visual.current) onOpen(project, visual.current.getBoundingClientRect())
+        if (project.study && ref.current) onOpen(project, ref.current.getBoundingClientRect())
       }}
-      data-cursor={project.study ? 'link' : 'hover'}
     >
-      {/* Position and lean share this layer: they are different properties, so
-          neither overwrites the other, and both belong to the same idea of the
-          card having weight. */}
-      <motion.div style={reduce ? undefined : { y: drift, rotate: lean }}>
-        <motion.div
-          animate={
-            reduce
-              ? undefined
-              : { y: ['0%', '-4%', '0%'], rotate: [0, project.rot > 0 ? 1.2 : -1.2, 0] }
-          }
-          transition={{ duration: 9 + index * 1.7, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <motion.div
-            ref={visual}
-            className="aspect-[17/10]"
-            initial={false}
-            animate={{
-              rotate: project.rot,
-              scale: active ? 1.04 : 1,
-              opacity: dim ? DIMMED : 1,
-            }}
-            transition={{ duration: 0.55, ease: EASE }}
-          >
-            <Cover project={project} index={index} lifted={active} />
-          </motion.div>
-        </motion.div>
+      <motion.div
+        initial={false}
+        animate={{ opacity: dim ? DIMMED : 1 }}
+        transition={{ duration: 0.55, ease: EASE }}
+      >
+        <Frame project={project} index={index} tip={tip} lifted={active} />
       </motion.div>
 
-      {/* One anchor, just past the card's right edge, and a single translation
-          that carries the copy round to the left when the card crosses the
-          middle. Two competing anchors could not be animated between. */}
+      {/* One anchor, just past the window's right edge, and a single translation
+          that carries the copy round to the left when it crosses the middle. Two
+          competing anchors could not be animated between. */}
       <motion.div
         className="pointer-events-none absolute"
         style={{
@@ -587,7 +393,7 @@ function Card({
           <Copy project={project} />
         </motion.div>
       </motion.div>
-    </motion.div>
+    </Draggable>
   )
 }
 
@@ -637,12 +443,15 @@ function Strip({ onOpen }) {
         {projects.map((project, i) => (
           <div key={project.id} className="w-[84%] shrink-0 snap-center sm:w-[62%]">
             <div
-              className="aspect-[17/10]"
               onClick={(e) => {
                 if (project.study) onOpen(project, e.currentTarget.getBoundingClientRect())
               }}
             >
-              <Cover project={project} index={i} lifted={i === at} />
+              {/* The same frame as on the stage, and no fixed ratio: the shot
+                  keeps its own proportions here too. tip is inert on a phone,
+                  where nothing is pointed at, so the buttons are drawn and go
+                  nowhere. */}
+              <Frame project={project} index={i} tip={INERT_TIP} lifted={i === at} />
             </div>
           </div>
         ))}
@@ -672,24 +481,19 @@ function Strip({ onOpen }) {
 /* ------------------------------------------------------------------ */
 export default function Work() {
   const reduce = useReducedMotion()
-  const wide = useWide()
   const section = useRef(null)
-  // Where the cards live, and how far they may go. Two different boxes.
+  // Where the windows live, and how far they may go. Two different boxes.
   const stage = useRef(null)
   const field = useRef(null)
   const [hovered, setHovered] = useState(null)
   // The rect the surface grows from is captured at the click, not recomputed:
-  // it is where the card was when it was pressed.
+  // it is where the window was when it was pressed.
   const [study, setStudy] = useState(null)
-  // Resting order of the cards, empty until the first drag. A card not in
-  // here yet keeps its arrival order, 10 + index.
-  const [zOrder, setZOrder] = useState({})
-  const topZ = useRef(10 + projects.length)
-
-  function bringToFront(id) {
-    topZ.current += 1
-    setZOrder((order) => ({ ...order, [id]: topZ.current }))
-  }
+  const { order, bringToFront } = useStack(REST_ORDER)
+  // One element per window, for the observer that measures how far each may go.
+  const spots = useRef(new Map())
+  const tip = useRefusalTip()
+  const [room, setRoom] = useState({})
 
   function open(project, from) {
     setStudy({ project, from })
@@ -729,6 +533,32 @@ export default function Work() {
     target: section,
     offset: ['start end', 'end start'],
   })
+
+  /* Measured off the field, not off the page: the field being resized by the
+     viewport is what the observer catches, and the listener catches the frames a
+     document that is not painting cannot deliver to it. */
+  useEffect(() => {
+    const box = field.current
+    if (!box) return undefined
+
+    function measure() {
+      const next = {}
+      spots.current.forEach((el, id) => {
+        if (el) next[id] = bounds(box, el)
+      })
+      setRoom(next)
+    }
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    window.addEventListener('resize', measure)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
 
   return (
     <section
@@ -795,19 +625,21 @@ export default function Work() {
               project={project}
               index={i}
               field={field}
-              progress={scrollYProgress}
+              spot={(el) => spots.current.set(project.id, el)}
+              room={room[project.id]}
               active={hovered === project.id}
               dim={hovered !== null && hovered !== project.id}
               onEnter={() => setHovered(project.id)}
               onLeave={() => setHovered(null)}
               onOpen={open}
-              reduce={reduce}
-              wide={wide}
-              z={zOrder[project.id] ?? 10 + i}
+              tip={tip}
+              z={order[project.id]}
               onFront={() => bringToFront(project.id)}
             />
           ))}
         </div>
+
+        <AnimatePresence>{tip.tip && <Tip tip={tip.tip}>{work.refusal}</Tip>}</AnimatePresence>
       </div>
 
       {/* Outside the field, which is hidden below lg: the strip is the only thing
@@ -824,7 +656,6 @@ export default function Work() {
           <Study
             key={study.project.id}
             project={study.project}
-            mat={MAT[study.project.mat]}
             from={study.from}
             onClose={() => setStudy(null)}
           />

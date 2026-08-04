@@ -25,7 +25,7 @@ React 18, Vite 6, Tailwind CSS **v4** (config en CSS, pas de `tailwind.config.js
 4. **Toute animation respecte `prefers-reduced-motion`** via `useReducedMotion()` de Framer Motion ou la media query déjà présente en fin de `index.css`.
 5. **Pas de sur-titres décoratifs** au-dessus des h2, pas de badge « généré par IA ». Les titres portent seuls l'information.
 6. **Aucune emphase dans les titres** : pas d'italique, pas de mot coloré, pas de casse spéciale. L'accent lime des mots-clés ne concerne que les paragraphes de `process`, jamais un titre. `Headline` ne fait que le masque de révélation. Pas de `uppercase` nulle part sur le site.
-7. **Un seul accent plein** : le lime `#c8ff5e`, à cinq endroits seulement (pastille de nav active, bouton email du footer, mots-clés des paragraphes de `process`, le bouton plein écran de la fenêtre Experience, et le tag LinkedIn au survol du portrait du hero). Le tag du portrait a été ajouté sur demande explicite le 04/08/2026 : c'est un aplat et non de la lumière comme le halo du footer, donc il compte, et c'est ce qui a fait passer la règle de quatre à cinq. Le bouton plein écran d'Experience porte l'accent **parce qu'il est le seul des trois qui fait quelque chose** : les deux autres sont en `--color-paper-deep` et se lisent comme désactivés. Dans `process`, **un mot-clé par paragraphe** : l'accent sert à accrocher l'œil au premier coup d'œil, cinq mots allumés dans un paragraphe n'accrochent rien. Le forest `#0a5f10` ne sert qu'aux intitulés de poste du parcours. Les quatre `--color-mat-*` ne sont pas des accents : ils appartiennent à un projet, n'apparaissent que derrière une couverture dans Work, et il y en a exactement un par projet.
+7. **Un seul accent plein** : le lime `#c8ff5e`, à quatre endroits seulement (pastille de nav active, bouton email du footer, mots-clés des paragraphes de `process`, et le tag LinkedIn au survol du portrait du hero). Le bouton plein écran des fenêtres a disparu en V2 avec le plein écran lui-même : plus rien n'agit dans une barre de fenêtre, donc les trois pastilles sont toutes en `--color-paper-deep` et une lime n'y serait qu'un accent de plus pour rien. Le tag du portrait a été ajouté sur demande explicite le 04/08/2026 : c'est un aplat et non de la lumière comme le halo du footer, donc il compte, et c'est ce qui a fait passer la règle de quatre à cinq. Le bouton plein écran d'Experience porte l'accent **parce qu'il est le seul des trois qui fait quelque chose** : les deux autres sont en `--color-paper-deep` et se lisent comme désactivés. Dans `process`, **un mot-clé par paragraphe** : l'accent sert à accrocher l'œil au premier coup d'œil, cinq mots allumés dans un paragraphe n'accrochent rien. Le forest `#0a5f10` ne sert qu'aux intitulés de poste du parcours. Les quatre `--color-mat-*` ne sont pas des accents : ils appartiennent à un projet, n'apparaissent que derrière une couverture dans Work, et il y en a exactement un par projet.
 8. **Pas de `localStorage`, pas d'analytics, pas de tracking** sans me demander.
 
 ## Ton du contenu
@@ -40,6 +40,10 @@ Test avant validation d'un texte : est-ce que ça sonne comme une conversation e
 src/
   App.jsx                 ordre des sections, rien d'autre
   index.css               @theme (tokens), @utility (type scale), grain, reduced-motion
+  components/Window.jsx   la fenêtre partagée par Works et Experiences : drag,
+                          contraintes, inertie, survol, ordre de pile, pastilles,
+                          infobulle de refus. Le comportement vit là une fois
+                          plutôt que deux, il avait déjà divergé
   lib/motion.jsx          Reveal, Headline, ScrollWords, Parallax, Magnetic, EASE
   lib/sequence.js         géométrie et timing de la séquence épinglée de Process (pur, testable)
   data/content.js         tout le texte + la liste de nav + les 4 étapes de Process

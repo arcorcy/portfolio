@@ -55,7 +55,12 @@ function Figure({ cover, caption, seed }) {
   )
 }
 
-export default function Study({ project, mat, from, onClose }) {
+/* The surface the study grows onto. It used to be the project's own mat, and the
+   mats went with the V2 windows: one paper surface for all four now, which is also
+   what the body sits on, so the seam the cover slides under still reads. */
+const SURFACE = 'bg-paper'
+
+export default function Study({ project, from, onClose }) {
   const closer = useRef(null)
   const titleId = `study-${project.id}`
 
@@ -87,7 +92,7 @@ export default function Study({ project, mat, from, onClose }) {
             /* overscroll-contain, or reaching the top of this panel hands the scroll
          on to the document, which rubber-bands and drags every fixed layer with
          it: the page shows through above the study. */
-      className={`fixed inset-0 z-[100] origin-top-left overflow-y-auto overscroll-contain ${mat}`}
+      className={`fixed inset-0 z-[100] origin-top-left overflow-y-auto overscroll-contain ${SURFACE}`}
       style={{ clipPath: `circle(var(--iris) at 50% 50%)` }}
       initial={{ ...flip(from), borderRadius: 24, '--iris': IRIS_OPEN }}
       animate={{ x: 0, y: 0, scaleX: 1, scaleY: 1, borderRadius: 0, '--iris': IRIS_OPEN }}
