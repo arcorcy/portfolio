@@ -48,6 +48,8 @@ Valeur fixe et non un pourcentage : les sections plafonnent déjà leur contenu 
 
 Règle d'usage : **un seul accent plein**, le lime, et seulement à trois endroits (pastille de nav active, bouton email du footer, un mot-clé par paragraphe de How I work). Le forest ne sert qu'aux intitulés de poste. Tout le reste est ink / mute / white.
 
+Le halo du footer n'est pas un cinquième endroit : c'est de la lumière et pas un aplat, il culmine à 13 % et s'est dissous bien avant d'atteindre un bord, donc il ne forme jamais de forme. Il est posé derrière le bouton email, ce qui le fait lire comme ce bouton allumé plutôt que comme une couleur de plus.
+
 ## Typographie
 
 Manrope seule. Le display est en **poids 600**, pas 800 : la maquette lit serré et calme plutôt que lourd.
@@ -87,8 +89,8 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 | Pattern | Où | Détail |
 |---|---|---|
 | Reveal | blocs de contenu | opacity + Y 26px + blur 8px, `once: true`, 0.9s |
-| Headline mask | tous les titres | mot par mot, masque `overflow-hidden`, stagger 55ms |
-| ScrollWords | section sombre | opacité 0.16 → 1 mot par mot, pilotée par la position de scroll (réversible au scroll inverse) |
+| Headline mask | tous les titres sauf Contact | mot par mot, masque `overflow-hidden`, stagger 55ms |
+| ScrollWords | How I work + titre de Contact | opacité 0.16 → 1 mot par mot, pilotée par la position de scroll (réversible au scroll inverse). Le titre de Contact est en deux lignes déclarées, l'indice des mots courant d'une ligne à l'autre pour que la lumière balaie dans l'ordre de lecture |
 | Quadrillage | Works + How I work | 15 colonnes en desktop, plancher de cellule à 48px en dessous. Apparaît en fondu à l'arrivée de Works, disparaît avant la fin de How I work |
 | Constellation | Works | survol : la carte monte à 1,04 et les autres tombent à 10 %. Le texte apparaît collé à la carte, du côté où il y a de la place, et la suit au drag. Dérive au scroll, flottement en boucle, drag contraint au plateau |
 | Deck témoignage | Testimonials | flèches + jet de la carte du dessus au-delà de 110px, ressort vers le slot |
@@ -97,6 +99,7 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 | Parallaxe | bloc visuel du hero | suit le curseur (±40/28px) et dérive au scroll |
 | Magnetic | CTA | l'élément se penche vers le curseur |
 | Curseur custom | desktop uniquement | `mix-blend-difference`, grossit sur `[data-cursor]` |
+| Halo Contact | Contact | dégradé radial lime derrière le titre, pic à 13 %, respiration de 11 s. Découpé par sa propre boîte et non par un ancêtre du titre |
 | Grain | global | overlay SVG animé, opacité 0.038 |
 
 Au-dessus de 1024px, sur pointeur fin et hors reduced-motion, le curseur natif est masqué et le curseur dessiné le remplace. En dessous d'une seule de ces conditions il revient, parce que le curseur dessiné ne s'affiche pas.

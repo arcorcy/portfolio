@@ -29,25 +29,6 @@ const MASK_ROOM = '0.22em'
 export const HIDDEN_Y = '128%'
 export const maskStyle = { paddingBottom: MASK_ROOM, marginBottom: `-${MASK_ROOM}` }
 
-/* Where the reveal is clipped, chosen by the `clip` prop.
-
-   'line', the default, puts one mask on each declared line. That is right for
-   exactly as long as the line does not wrap: the mask cuts at the container box,
-   so a word parked under its own line on a narrow screen stays inside the mask,
-   lands on the next line's band, and is seen before its turn.
-
-   'word' clips each word to its own box instead. A word cannot wrap, so a mask
-   sitting on the word survives any wrapping without having to know where it
-   falls. It is the hero's technique, there for the same reason, and it is what a
-   heading long enough to wrap on a laptop rather than only on a phone needs.
-
-   clip-path and not overflow, again for the hero's reason: overflow on an
-   inline-block moves its baseline to the bottom margin edge, which would drop
-   every word off the strut. 0.22em below the box for the descenders, the same
-   number MASK_ROOM uses, and 0.4em above it for the ascenders and for the accent
-   Manrope puts over a capital. */
-const WORD_CLIP = 'inset(-0.4em -0.25em -0.22em -0.25em)'
-
 export function Headline({
   lines,
   className = 'display-lg',
@@ -55,7 +36,6 @@ export function Headline({
   stagger = 0.055,
   as: Tag = 'h2',
   shown,
-  clip = 'line',
 }) {
   const reduce = useReducedMotion()
   const ref = useRef(null)
@@ -70,23 +50,18 @@ export function Headline({
      first shown as a teaser inside the hero, on a timer rather than on the
      moment it enters view, and it is the same element either way. */
   const lit = shown ?? inView
-  const perWord = clip === 'word'
   let i = -1
 
   return (
     <Tag ref={ref} className={className}>
       {lines.map((line, li) => (
-        <span
-          key={li}
-          className={perWord ? 'block' : 'block overflow-hidden'}
-          style={perWord ? undefined : maskStyle}
-        >
+        <span key={li} className="block overflow-hidden" style={maskStyle}>
           {line.split(' ').map((word, wi) => {
             if (word === '') return null
             i += 1
-
-            const travel = (
+            return (
               <motion.span
+                key={`${li}-${wi}`}
                 className="inline-block whitespace-pre"
                 initial={false}
                 animate={
@@ -96,22 +71,8 @@ export function Headline({
                 }
                 transition={{ duration: 1, delay: delay + i * stagger, ease: EASE }}
               >
-                {/* The space rides inside the word when the mask is the line's,
-                    and outside it when the mask is the word's: there it has to
-                    sit between two clipped boxes, since that is the only break
-                    opportunity a row of inline-blocks has. */}
-                {perWord ? word : `${word} `}
+                {word}{' '}
               </motion.span>
-            )
-
-            if (!perWord) return <Fragment key={`${li}-${wi}`}>{travel}</Fragment>
-
-            return (
-              <Fragment key={`${li}-${wi}`}>
-                <span className="inline-block" style={{ clipPath: WORD_CLIP }}>
-                  {travel}
-                </span>{' '}
-              </Fragment>
             )
           })}
         </span>
@@ -160,7 +121,7 @@ function Word({ children, progress, range, accent }) {
   )
 }
 
-export function ScrollWords({ text, className = '', progress, range }) {
+export function ScrollWords({ text, lines, className = '', progress, range, as: Tag = 'p' }) {
   const ref = useRef(null)
   const reduce = useReducedMotion()
   const own = useScroll({
@@ -168,19 +129,14 @@ export function ScrollWords({ text, className = '', progress, range }) {
     offset: ['start 0.85', 'end 0.45'],
   })
 
-  const words = parseAccents(text)
-
-  if (reduce) {
-    return (
-      <p ref={ref} className={className}>
-        {words.map(({ word, accent }, i) => (
-          <span key={i} className={accent ? 'text-lime' : undefined}>
-            {word}{' '}
-          </span>
-        ))}
-      </p>
-    )
-  }
+  /* One entry per declared line, so a caller can keep a two-sentence heading on
+     its two lines. The word index runs across the lines rather than restarting
+     in each, which is what makes the light sweep through in reading order
+     instead of both lines filling at once. A plain string is the single-line
+     case of the same thing, and stays the common one. */
+  const rows = (lines ?? [text]).map(parseAccents)
+  const total = rows.reduce((n, row) => n + row.length, 0)
+  const perLine = lines != null
 
   // A pinned section drives the words from its own progress and hands over the
   // slice of it that belongs to this paragraph, because the paragraph itself
@@ -189,23 +145,43 @@ export function ScrollWords({ text, className = '', progress, range }) {
   const source = driven ? progress : own.scrollYProgress
   const [from, to] = driven ? range : [0, LIT_AT]
   const span = to - from
+  let i = -1
 
   return (
-    <p ref={ref} className={className}>
-      {words.map(({ word, accent }, i) => (
-        <Word
-          key={i}
-          progress={source}
-          accent={accent}
-          range={[
-            from + (i / words.length) * span,
-            from + ((i + 1) / words.length) * span,
-          ]}
-        >
-          {word}
-        </Word>
-      ))}
-    </p>
+    <Tag ref={ref} className={className}>
+      {rows.map((row, ri) => {
+        const line = row.map(({ word, accent }, wi) => {
+          i += 1
+          if (reduce) {
+            return (
+              <span key={wi} className={accent ? 'text-lime' : undefined}>
+                {word}{' '}
+              </span>
+            )
+          }
+
+          const at = i
+          return (
+            <Word
+              key={wi}
+              progress={source}
+              accent={accent}
+              range={[from + (at / total) * span, from + ((at + 1) / total) * span]}
+            >
+              {word}
+            </Word>
+          )
+        })
+
+        return perLine ? (
+          <span key={ri} className="block">
+            {line}
+          </span>
+        ) : (
+          <Fragment key={ri}>{line}</Fragment>
+        )
+      })}
+    </Tag>
   )
 }
 

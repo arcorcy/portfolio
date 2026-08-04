@@ -935,7 +935,7 @@ export default function Experience() {
          has neither: a drag may overshoot the field on its elastic, and a
          flex-1 field would defeat justify-content before it ever ran, so the
          gap above the title is py-24 lg:py-16 doing the whole job on its own. */
-      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:min-h-[125svh] lg:pb-16 lg:pt-32"
+      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:min-h-[112svh] lg:pb-16 lg:pt-32"
     >
       <Headline
         lines={experience.title}
