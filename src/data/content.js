@@ -111,5 +111,9 @@ export const process = {
 
 export const contact = {
   lead: ["Don't hesitate to contact me.", "I swear I don't let AI read my emails."],
+  /* What the email button says once the address is on the clipboard. One word,
+     because it is read at a glance in the second and a half before the address
+     comes back, and because it is also what a screen reader announces. */
+  copied: 'Copied',
 }
 

@@ -11,7 +11,7 @@ Les tokens vivent dans `src/index.css` sous `@theme` (Tailwind v4) : c'est la so
 5. **Experiences** (`#experience`) — « Where I have worked » + « And where I learned ».
 6. **Other stuffs** (`#story`) — « I got here the long way » + cartes de faits.
 7. **One more thing** — emplacement réservé, en attente de contenu.
-8. **Contact** (`#contact`) — footer sombre, **un écran plein**, centré : le titre en deux phrases, le bouton email et LinkedIn, rien d'autre. La ligne légale est dans cet écran et non après, donc le footer fait exactement une hauteur d'écran.
+8. **Contact** (`#contact`) — footer sombre, **un écran plein**, centré : le titre en deux phrases, le bouton email et LinkedIn, rien d'autre. Le bouton email **copie l'adresse** et ne l'ouvre pas dans un client mail. La ligne légale est dans cet écran et non après, donc le footer fait exactement une hauteur d'écran.
 
 La nav ne référence que 5 de ces sections : le hero, les témoignages et « One more thing » n'ont pas d'entrée.
 
