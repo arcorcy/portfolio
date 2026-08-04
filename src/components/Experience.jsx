@@ -25,6 +25,14 @@ const GROW = { duration: 0.55, ease: EASE }
 const COPY_IN = { duration: 0.45, delay: 0.35, ease: EASE }
 const SHUT = { duration: 0.12 }
 
+/* Framer's own drag momentum, at these window sizes, carried a flick clear
+   across the field. Lower power and a shorter time constant than Work's own
+   THROW: a flick still glides, but only a little. */
+const THROW = { power: 0.12, timeConstant: 200, bounceStiffness: 220, bounceDamping: 26 }
+
+/* The same slight lift Work's cards get on hover. */
+const HOVER = { scale: 1.02 }
+
 /* The refusal tip is placed from the button's own box rather than guessed at.
    TIP_HEIGHT is not a guess either: it is this tip's own box, one line of text-sm
    at 20px on 2 x 0.5rem of padding, measured at 34px. EDGE is what it keeps off
@@ -412,27 +420,297 @@ function TerminalFrame({ onExpand, tip, onRefuse, onRest, expanded = false }) {
 }
 
 /* ------------------------------------------------------------------
-   Below lg, and whenever motion is turned down: no chrome at all, just the
-   experiences in order.
+   Below lg, and whenever motion is turned down: seven small windows, one per
+   experience, read in order.
 
-   Three desktop-object windows are exactly what a phone has no room for, and
-   nothing here depends on which app each one imitates, so all seven tabs read
-   the same way once the chrome is gone.
+   Three overlapping desktop windows are what a phone has no room for, and the
+   whole point of the pinned version is a tab changing under a pointer that does
+   not move, which a phone has neither of. So the same joke is told the way a
+   phone can hear it: each experience gets its own window, and each imitates a
+   different macOS app, picked in the data for what that experience actually
+   holds rather than for variety.
+
+   None of them is interactive. The three buttons are dead here, the tab strips
+   and steppers are gone, and nothing drags: a window a thumb cannot do anything
+   with should not invite the thumb.
    ------------------------------------------------------------------ */
+
+/* All three buttons are paper-deep on a phone, the lime one included. On the
+   desktop windows the lime earns the accent by being the only one of the three
+   that does something; here nothing opens, and a lime dot that does nothing is
+   only a fifth place the accent turns up. */
+function Buttons({ dark = false }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5" aria-hidden="true">
+      {DOTS.map((dot) => (
+        <span
+          key={dot.id}
+          className={`h-2.5 w-2.5 rounded-full ${dark ? 'bg-white/20' : 'bg-paper-deep'}`}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* The window: a title bar holding the three buttons and whatever the app puts
+   beside them, then the app's own surface. Height comes from the content, and
+   every paragraph inside is clamped, which is what keeps the tallest of them
+   under the 600px a small window has to stay below. */
+function Sheet({ head, dark = false, children }) {
+  return (
+    <div
+      className={`overflow-hidden shadow-[0_18px_40px_-24px_rgba(1,1,2,0.28)] ${FRAME_RADIUS} ${
+        dark ? 'border border-white/10 bg-ink' : 'border border-line bg-paper'
+      }`}
+    >
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        <Buttons dark={dark} />
+        {head}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/* The app's name in its own title bar, the way a Mac puts it there. */
+function Label({ children, dark = false }) {
+  return (
+    <p
+      className={`min-w-0 flex-1 truncate text-xs font-bold ${dark ? 'text-white/60' : 'text-mute'}`}
+    >
+      {children}
+    </p>
+  )
+}
+
+/* The white page under a light app's title bar. */
+function Surface({ children }) {
+  return <div className="bg-white px-4 py-4">{children}</div>
+}
+
+/* Mark, place and role: the one block every app needs, however it dresses it. */
+function Ident({ tab, className = '' }) {
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      <Mark tab={tab} prefer="logo" className="h-9 w-9 shrink-0 rounded-[8px]" />
+      <div className="min-w-0">
+        <h3 className="truncate text-[0.95rem] font-bold">{tab.place}</h3>
+        <p className="truncate text-xs text-mute">{tab.role}</p>
+      </div>
+    </div>
+  )
+}
+
+function Facts({ tab, className = '' }) {
+  return (
+    <dl className={`flex flex-wrap gap-x-6 gap-y-1 border-y border-line py-2 text-xs ${className}`}>
+      <div>
+        <dt className="text-mute">Period</dt>
+        <dd className="mt-0.5 font-bold">{tab.period}</dd>
+      </div>
+      <div>
+        <dt className="text-mute">Missions</dt>
+        <dd className="mt-0.5 font-bold">{tab.missions}</dd>
+      </div>
+    </dl>
+  )
+}
+
+/* The clamp is the guarantee, not a nicety: the real paragraphs are still to be
+   written and a long one would otherwise push a window past its height on its
+   own. Each app passes the count that fits what else it is carrying. */
+function Blurb({ tab, className = '' }) {
+  return <p className={`text-sm leading-[1.55] text-ink/80 ${className}`}>{tab.description}</p>
+}
+
+/* Every app that carries a testimonial shows it the way that app would: a mail
+   client puts a rule down the left of what it quotes, the others give it a
+   panel of its own. */
+function Quote({ tab, reply = false, className = '' }) {
+  if (!tab.quote) return null
+
+  return (
+    <figure
+      className={`${className} ${reply ? 'border-l-2 border-line pl-3' : `bg-paper p-3 ${FRAME_RADIUS}`}`}
+    >
+      <blockquote className="line-clamp-4 text-sm leading-[1.5] text-ink/80">
+        {tab.quote.text}
+      </blockquote>
+      <figcaption className="mt-2 text-xs font-bold">
+        {tab.quote.client}
+        <span className="font-normal text-mute"> — {tab.place}</span>
+      </figcaption>
+    </figure>
+  )
+}
+
+/* Notes, for the two schools, same as the desktop window gives them. A note is
+   a date, a first line standing in for its own title, and the body: no sidebar
+   here, since each school already has a window to itself. */
+function NotesApp({ tab }) {
+  return (
+    <Sheet head={<Label>Notes</Label>}>
+      <Surface>
+        <p className="text-center text-[11px] text-mute">{tab.period}</p>
+        <h3 className="mt-2 text-[0.95rem] font-bold">{tab.place}</h3>
+        <p className="text-xs text-mute">{tab.role}</p>
+        <Blurb tab={tab} className="mt-3 line-clamp-5" />
+      </Surface>
+    </Sheet>
+  )
+}
+
+/* The terminal, for the one freelance run, again the same as on the desktop.
+   TerminalShell's flex sizing is inert outside a flex column, so it simply
+   takes the height of its own lines here. */
+function TerminalApp({ tab }) {
+  return (
+    <Sheet dark head={<Label dark>zsh</Label>}>
+      <TerminalShell tab={tab} />
+    </Sheet>
+  )
+}
+
+/* Safari, for the agency years: buttons and one URL pill on a single row, the
+   way Safari does it rather than the tab strip the desktop browser has. */
+function SafariApp({ tab }) {
+  return (
+    <Sheet
+      head={
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-white px-2.5 py-1">
+          <Mark tab={tab} className="h-3 w-3 shrink-0 rounded-[2px]" />
+          <p className="min-w-0 truncate text-[11px] text-mute">
+            {tab.url ?? <span className="italic">url to fill in</span>}
+          </p>
+        </div>
+      }
+    >
+      <Surface>
+        <Ident tab={tab} />
+        <Facts tab={tab} className="mt-3" />
+        <Blurb tab={tab} className="mt-3 line-clamp-5" />
+      </Surface>
+    </Sheet>
+  )
+}
+
+/* Mail, for the one experience with a real testimonial. A message has a sender,
+   a date and a subject, and a client's words quoted under it read as the reply
+   they were: this is the app that fits its content, not a costume. */
+function MailApp({ tab }) {
+  return (
+    <Sheet head={<Label>Inbox</Label>}>
+      <Surface>
+        <div className="flex items-center gap-3">
+          <Mark tab={tab} prefer="logo" className="h-9 w-9 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 className="truncate text-[0.95rem] font-bold">{tab.place}</h3>
+              <p className="shrink-0 text-[11px] text-mute">{tab.period}</p>
+            </div>
+            <p className="truncate text-xs text-mute">{tab.role}</p>
+          </div>
+        </div>
+
+        <p className="mt-3 border-t border-line pt-3 text-sm font-bold">{tab.missions}</p>
+        <Blurb tab={tab} className="mt-1.5 line-clamp-4" />
+        <Quote tab={tab} reply className="mt-3" />
+      </Surface>
+    </Sheet>
+  )
+}
+
+/* Reminders, for the current job: the work as the list of what it involves,
+   with the testimonial as the note under the list. */
+function RemindersApp({ tab }) {
+  return (
+    <Sheet head={<Label>Reminders</Label>}>
+      <Surface>
+        <div className="flex items-center gap-3">
+          <Mark tab={tab} prefer="logo" className="h-7 w-7 shrink-0 rounded-[6px]" />
+          <h3 className="min-w-0 truncate text-[0.95rem] font-bold">{tab.place}</h3>
+        </div>
+
+        <ul className="mt-3 border-t border-line">
+          {[tab.role, tab.period, tab.missions].map((item, i) => (
+            <li key={i} className="flex items-center gap-2.5 border-b border-line py-2 text-sm">
+              <span className="h-4 w-4 shrink-0 rounded-full border border-paper-deep" />
+              <span className="min-w-0 truncate">{item}</span>
+            </li>
+          ))}
+        </ul>
+
+        <Blurb tab={tab} className="mt-3 line-clamp-3" />
+        <Quote tab={tab} className="mt-3" />
+      </Surface>
+    </Sheet>
+  )
+}
+
+/* Contacts, for the last one: what is known about it is exactly a set of
+   labelled fields, which is the card an address book already holds. */
+function ContactsApp({ tab }) {
+  return (
+    <Sheet head={<Label>Contacts</Label>}>
+      <Surface>
+        <div className="flex flex-col items-center text-center">
+          <Mark tab={tab} prefer="logo" className="h-14 w-14 rounded-full" />
+          <h3 className="mt-2 text-[0.95rem] font-bold">{tab.place}</h3>
+          <p className="text-xs text-mute">{tab.role}</p>
+        </div>
+
+        <dl className="mt-3 border-t border-line text-sm">
+          {[
+            ['Period', tab.period],
+            ['Missions', tab.missions],
+          ].map(([label, value]) => (
+            <div key={label} className="flex gap-3 border-b border-line py-2">
+              <dt className="w-16 shrink-0 text-right text-xs text-mute">{label}</dt>
+              <dd className="min-w-0 flex-1 truncate">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <Blurb tab={tab} className="mt-3 line-clamp-3" />
+        <Quote tab={tab} className="mt-3" />
+      </Surface>
+    </Sheet>
+  )
+}
+
+const APPS = {
+  notes: NotesApp,
+  terminal: TerminalApp,
+  safari: SafariApp,
+  mail: MailApp,
+  reminders: RemindersApp,
+  contacts: ContactsApp,
+}
+
+/* No heading here: the section renders it once, above both layouts. It used to
+   be repeated in this one, which put the title on screen twice on a phone. */
 function Flat({ reduce }) {
   return (
     <div
-      className={`gutter relative z-10 mx-auto w-full max-w-[1400px] py-24 sm:py-32 ${
+      className={`relative z-10 mx-auto mt-12 flex w-full max-w-[30rem] flex-col gap-8 ${
         reduce ? '' : 'lg:hidden'
       }`}
     >
-      <Headline lines={experience.title} className="display-lg text-center" />
+      {tabs.map((tab) => {
+        const App = APPS[tab.app]
 
-      {tabs.map((tab) => (
-        <article key={tab.id} className="mt-14">
-          <Page tab={tab} />
-        </article>
-      ))}
+        return (
+          <motion.article
+            key={tab.id}
+            initial={reduce ? undefined : { opacity: 0, y: 24 }}
+            whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.6, ease: EASE }}
+          >
+            <App tab={tab} />
+          </motion.article>
+        )
+      })}
     </div>
   )
 }
@@ -458,13 +736,18 @@ function flip(rect) {
    three windows placed by percentage of that same box came out clamped into a
    cluster around its centre, each pushed 20 to 250px off the spot its left/top
    actually says. offsetLeft and clientWidth, read after layout has settled, do
-   not have that problem, and this is the same fix the old sticky window used. */
+   not have that problem, and this is the same fix the old sticky window used.
+
+   The Math.min(0, …) / Math.max(0, …) keep zero inside the interval whatever the
+   field measures, so a viewport short enough that a window is taller than the
+   field cannot produce a range with its ends crossed, which Framer would answer
+   by snapping the window off its own spot. */
 function bounds(field, win) {
   return {
-    left: -win.offsetLeft,
-    right: field.clientWidth - win.offsetLeft - win.offsetWidth,
-    top: -win.offsetTop,
-    bottom: field.clientHeight - win.offsetTop - win.offsetHeight,
+    left: Math.min(0, -win.offsetLeft),
+    right: Math.max(0, field.clientWidth - win.offsetLeft - win.offsetWidth),
+    top: Math.min(0, -win.offsetTop),
+    bottom: Math.max(0, field.clientHeight - win.offsetTop - win.offsetHeight),
   }
 }
 
@@ -484,7 +767,10 @@ function Window({ spec, room, zIndex, onFront, onExpand, tip, onRefuse, onRest }
       dragConstraints={room ?? false}
       dragElastic={0.16}
       dragMomentum
+      dragTransition={THROW}
       onDragStart={onFront}
+      whileHover={HOVER}
+      transition={{ duration: 0.4, ease: EASE }}
       data-cursor="hover"
       style={{
         left: spec.left,
@@ -649,7 +935,7 @@ export default function Experience() {
          has neither: a drag may overshoot the field on its elastic, and a
          flex-1 field would defeat justify-content before it ever ran, so the
          gap above the title is py-24 lg:py-16 doing the whole job on its own. */
-      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:py-16"
+      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:min-h-[125svh] lg:pb-16 lg:pt-32"
     >
       <Headline
         lines={experience.title}
@@ -663,7 +949,7 @@ export default function Experience() {
           its edges 1.5rem off the screen at any breakpoint. */}
       <div
         ref={field}
-        className={`relative mx-[calc(1.5rem-var(--gutter))] mt-8 flex-1 ${
+        className={`relative mx-[calc(1.5rem-var(--gutter))] mt-16 flex-1 ${
           reduce ? 'hidden' : 'hidden lg:block'
         }`}
       >

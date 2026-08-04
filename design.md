@@ -92,6 +92,7 @@ Easing unique : `cubic-bezier(0.16, 1, 0.3, 1)`, exporté comme `EASE`.
 | Quadrillage | Works + How I work | 15 colonnes en desktop, plancher de cellule à 48px en dessous. Apparaît en fondu à l'arrivée de Works, disparaît avant la fin de How I work |
 | Constellation | Works | survol : la carte monte à 1,04 et les autres tombent à 10 %. Le texte apparaît collé à la carte, du côté où il y a de la place, et la suit au drag. Dérive au scroll, flottement en boucle, drag contraint au plateau |
 | Deck témoignage | Testimonials | flèches + jet de la carte du dessus au-delà de 110px, ressort vers le slot |
+| Fenêtres Experience | Experiences | survol : la fenêtre grossit légèrement (scale 1.02). Drag libre contraint au champ, inertie freinée pour ne pas glisser loin au lâcher |
 | Séquence épinglée | How I work | 4 étapes, une par écran de scroll. Le texte suit le scroll mot à mot puis part en fondu, la composition d'icônes se réarrange au ressort |
 | Parallaxe | bloc visuel du hero | suit le curseur (±40/28px) et dérive au scroll |
 | Magnetic | CTA | l'élément se penche vers le curseur |
@@ -106,6 +107,7 @@ Toutes les animations tombent à zéro sous `prefers-reduced-motion: reduce` : l
 
 - Deck témoignage : le geste reste (drag horizontal), les flèches restent.
 - Works et How I work : sous 1024px, la constellation devient une bande horizontale à défilement par accroche (swipe ou flèches) avec le texte dessous, et la séquence épinglée une suite de paragraphes. Ni le survol ni la composition d'icônes n'ont de sens sur un téléphone.
+- Experiences : sous 1024px, les trois fenêtres déplaçables cèdent la place à **sept petites fenêtres, une par expérience**, chacune imitant une app macOS différente : Notes pour les deux écoles, terminal pour le freelance, Safari, Mail, Reminders et Contacts pour les quatre postes. L'app est choisie pour ce que l'expérience contient et non pour varier : celle qui a un vrai témoignage est un fil de mail, celle qui n'est qu'un jeu de champs est une fiche de contact. Aucune n'est interactive, plus de barre d'onglets ni de flèches, et les trois pastilles de fenêtre sont toutes en `paper-deep`, la lime n'y ferait rien.
 - Témoignages : le désordre et le drag disparaissent, on retombe sur une grille lisible de cards.
 - Bloc visuel du hero : passe dans le flux, sous le CTA, sans parallaxe.
 - Cards de faits (Other stuffs) : dans le flux, côte à côte.

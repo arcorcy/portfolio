@@ -3,11 +3,17 @@
  * school and work in one chronological run, oldest first.
  *
  * tabs
- *   kind        : 'work' | 'school' | 'freelance'. Picks which app the window
- *                 imitates: employee time in the Chrome-like browser, the two
- *                 schools in an Apple Notes sidebar, the one freelance run in a
- *                 terminal. The chrome swaps as the active tab's kind changes;
- *                 nothing else about the pinned mechanism cares.
+ *   kind        : 'work' | 'school' | 'freelance'. Groups the desktop windows:
+ *                 employee time in the Chrome-like browser, the two schools in
+ *                 an Apple Notes sidebar, the one freelance run in a terminal.
+ *                 Three windows, each holding the tabs of one kind.
+ *   app         : which macOS app the phone-sized window imitates, since below
+ *                 lg every experience gets a window of its own instead. Chosen
+ *                 for what that experience actually holds rather than for
+ *                 variety: the one with a real testimonial is a mail thread, the
+ *                 one that is a set of fields is a contact card. `kind` still
+ *                 decides the desktop grouping, so the two schools stay on
+ *                 'notes' and the freelance run on 'terminal'.
  *   place       : the company or school. Doubles as the tab label.
  *   role        : job title, or the diploma for a school.
  *   period      : as it should read on screen. `20XX` marks a placeholder.
@@ -45,6 +51,7 @@ export const experience = {
     {
       id: 'estienne',
       kind: 'school',
+      app: 'notes',
       place: 'École Estienne',
       role: 'Licence Design Numérique - Interfaces',
       period: "2019 – 2022",
@@ -58,6 +65,7 @@ export const experience = {
     {
       id: 'lisaa',
       kind: 'school',
+      app: 'notes',
       place: 'LISAA Paris',
       role: 'Master Product Design',
       period: "2022 – 2024",
@@ -71,6 +79,7 @@ export const experience = {
     {
       id: 'outsight',
       kind: 'freelance',
+      app: 'terminal',
       place: 'Outsight Studio',
       role: 'UI Designer Freelance',
       period: "2023",
@@ -84,6 +93,7 @@ export const experience = {
     {
       id: 'wolfox',
       kind: 'work',
+      app: 'safari',
       place: 'Wolfox Agency',
       role: 'Product Designer',
       period: "2022 – 2024",
@@ -97,6 +107,7 @@ export const experience = {
     {
       id: 'ublo',
       kind: 'work',
+      app: 'mail',
       place: 'Ublo Immo',
       role: 'Consultant Product designer',
       period: "June 2023 – August 2023",
@@ -116,6 +127,7 @@ export const experience = {
     {
       id: 'mantu',
       kind: 'work',
+      app: 'reminders',
       place: 'Agence Mantu',
       role: 'AI Product Designer',
       period: PLACEHOLDER_PERIOD,
@@ -132,6 +144,7 @@ export const experience = {
     {
       id: 'ceva',
       kind: 'work',
+      app: 'contacts',
       place: 'CEVA Logistic',
       role: 'Consultant Product designer',
       period: PLACEHOLDER_PERIOD,
