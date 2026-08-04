@@ -273,7 +273,20 @@ function Copy({ project, className = '' }) {
    stays outside the drift, float and hover layers: text that bobs and
    scales is text nobody reads.
    ------------------------------------------------------------------ */
-function Card({ project, index, field, progress, active, dim, onEnter, onLeave, onOpen, reduce }) {
+function Card({
+  project,
+  index,
+  field,
+  progress,
+  active,
+  dim,
+  onEnter,
+  onLeave,
+  onOpen,
+  reduce,
+  z,
+  onFront,
+}) {
   const ref = useRef(null)
   /* The innermost layer is the one to measure: the drag layer's box is the
      card's untransformed footprint, while the rotation and the drift live on
@@ -335,6 +348,7 @@ function Card({ project, index, field, progress, active, dim, onEnter, onLeave, 
      drag, not once per frame. */
   function onDragStart() {
     setHeld(true)
+    onFront()
     dragged.current = true
     if (!ref.current || !field.current) return
     const card = ref.current.getBoundingClientRect()
@@ -383,7 +397,12 @@ function Card({ project, index, field, progress, active, dim, onEnter, onLeave, 
            half the height is size/2 divided by the 17/10 ratio. */
         marginLeft: `${-project.size / 2}%`,
         marginTop: `${-project.size / 3.4}%`,
-        zIndex: held ? 50 : active ? 40 : 10 + index,
+        /* Three bands, wide apart so one can never bleed into the next: a card
+           being carried right now outranks one merely pointed at, which
+           outranks the resting order. z is that resting order, and it is the
+           one that persists once the card is let go: whichever card was last
+           dragged, of any of them, sits above the rest until another is. */
+        zIndex: held ? 1000 : active ? 500 : z,
         x: dragX,
         y: dragY,
       }}
@@ -556,6 +575,15 @@ export default function Work() {
   // The rect the surface grows from is captured at the click, not recomputed:
   // it is where the card was when it was pressed.
   const [study, setStudy] = useState(null)
+  // Resting order of the cards, empty until the first drag. A card not in
+  // here yet keeps its arrival order, 10 + index.
+  const [zOrder, setZOrder] = useState({})
+  const topZ = useRef(10 + projects.length)
+
+  function bringToFront(id) {
+    topZ.current += 1
+    setZOrder((order) => ({ ...order, [id]: topZ.current }))
+  }
 
   function open(project, from) {
     setStudy({ project, from })
@@ -667,6 +695,8 @@ export default function Work() {
               onLeave={() => setHovered(null)}
               onOpen={open}
               reduce={reduce}
+              z={zOrder[project.id] ?? 10 + i}
+              onFront={() => bringToFront(project.id)}
             />
           ))}
         </div>

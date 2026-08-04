@@ -1,4 +1,3 @@
-import Cursor from './components/Cursor.jsx'
 import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Mesh from './components/Mesh.jsx'
@@ -10,7 +9,6 @@ import Contact from './components/Contact.jsx'
 export default function App() {
   return (
     <div className="grain relative">
-      <Cursor />
       <Nav />
       <main>
         <Hero />
@@ -24,3 +22,4 @@ export default function App() {
     </div>
   )
 }
+

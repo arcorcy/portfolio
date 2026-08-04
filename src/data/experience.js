@@ -3,6 +3,11 @@
  * school and work in one chronological run, oldest first.
  *
  * tabs
+ *   kind        : 'work' | 'school' | 'freelance'. Picks which app the window
+ *                 imitates: employee time in the Chrome-like browser, the two
+ *                 schools in an Apple Notes sidebar, the one freelance run in a
+ *                 terminal. The chrome swaps as the active tab's kind changes;
+ *                 nothing else about the pinned mechanism cares.
  *   place       : the company or school. Doubles as the tab label.
  *   role        : job title, or the diploma for a school.
  *   period      : as it should read on screen. `20XX` marks a placeholder.
@@ -39,6 +44,7 @@ export const experience = {
   tabs: [
     {
       id: 'estienne',
+      kind: 'school',
       place: 'École Estienne',
       role: 'Licence Design Numérique - Interfaces',
       period: "2019 – 2022",
@@ -51,6 +57,7 @@ export const experience = {
     },
     {
       id: 'lisaa',
+      kind: 'school',
       place: 'LISAA Paris',
       role: 'Master Product Design',
       period: "2022 – 2024",
@@ -63,6 +70,7 @@ export const experience = {
     },
     {
       id: 'outsight',
+      kind: 'freelance',
       place: 'Outsight Studio',
       role: 'UI Designer Freelance',
       period: "2023",
@@ -75,9 +83,10 @@ export const experience = {
     },
     {
       id: 'wolfox',
+      kind: 'work',
       place: 'Wolfox Agency',
       role: 'Product Designer',
-      period: PLACEHOLDER_PERIOD,
+      period: "2022 – 2024",
       missions: PLACEHOLDER_MISSIONS,
       url: 'https://www.wolfox.studio/',
       logo: null,
@@ -87,9 +96,10 @@ export const experience = {
     },
     {
       id: 'ublo',
+      kind: 'work',
       place: 'Ublo Immo',
       role: 'Consultant Product designer',
-      period: PLACEHOLDER_PERIOD,
+      period: "June 2023 – August 2023",
       missions: PLACEHOLDER_MISSIONS,
       url: 'https://www.ublo.immo/',
       logo: null,
@@ -105,6 +115,7 @@ export const experience = {
     },
     {
       id: 'mantu',
+      kind: 'work',
       place: 'Agence Mantu',
       role: 'AI Product Designer',
       period: PLACEHOLDER_PERIOD,
@@ -120,6 +131,7 @@ export const experience = {
     },
     {
       id: 'ceva',
+      kind: 'work',
       place: 'CEVA Logistic',
       role: 'Consultant Product designer',
       period: PLACEHOLDER_PERIOD,
