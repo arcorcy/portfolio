@@ -38,6 +38,14 @@ const CROP = {
   'left-top': 'object-left-top',
 }
 
+/* How far the cover runs past the card's bottom right corner. The mat rounds that
+   corner and clips to it, so a cover stopping exactly on the edge leaves the
+   round corner cutting across a square one and a sliver of mat shows through.
+   Sending it a little further means the clip falls entirely inside the image and
+   the corner reads as the card's own. Bigger than the 24px radius, so it clears
+   the whole arc rather than most of it. */
+const BLEED = '2rem'
+
 // How far a card is pushed back while another one holds the attention.
 const DIMMED = 0.1
 
@@ -278,11 +286,17 @@ function Teaser({ reduce }) {
 function Cover({ project, index, lifted }) {
   return (
     <div
-      /* Two shadows, and the gap between them is the point: just enough at rest
+      /* The mat is a margin on two sides only, the top and the left, so the
+         cover is anchored into the card's bottom right corner and runs off both
+         of those edges. It used to be padded on the right as well, which framed
+         the shot on three sides and read as a picture parked in a frame rather
+         than as a window onto something larger.
+
+         Two shadows, and the gap between them is the point: just enough at rest
          to tell which card is over which, then a real lift under the one being
          pointed at. Both alpha and blur roughly double on hover, so the change
          reads as the card coming up rather than as the shadow getting darker. */
-      className={`h-full w-full overflow-hidden rounded-shot px-[6%] pt-[6%] transition-shadow duration-500 ${
+      className={`h-full w-full overflow-hidden rounded-shot pl-[6%] pt-[6%] transition-shadow duration-500 ${
         MAT[project.mat]
       } ${
         lifted
@@ -290,7 +304,14 @@ function Cover({ project, index, lifted }) {
           : 'shadow-[0_8px_22px_-14px_rgba(1,1,2,0.1)]'
       }`}
     >
-      <div className="h-full w-full overflow-hidden rounded-t-[10px] bg-white">
+      {/* Rounded on the one corner that is still inside the card. The other three
+          sit on or past an edge, and the bottom right is pushed a little past it
+          by BLEED so the mat's own radius can never show through as a sliver of
+          colour where a square corner meets a round one. */}
+      <div
+        className="overflow-hidden rounded-tl-[10px] bg-white"
+        style={{ width: `calc(100% + ${BLEED})`, height: `calc(100% + ${BLEED})` }}
+      >
         {project.cover ? (
           <img
             src={project.cover}
