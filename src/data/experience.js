@@ -71,7 +71,9 @@ export const experience = {
       period: "2022 – 2024",
       missions: PLACEHOLDER_MISSIONS,
       url: 'https://www.lisaa.com/fr/ecole/arts-appliques-graphisme-paris',
-      logo: null,
+      /* The first real mark of the seven. It is a portrait wordmark, 230 by 327,
+         which the square slot handles on its own through object-contain. */
+      logo: '/favicons/logo-lisaa.svg',
       favicon: '/favicons/lisaa.ico',
       description: PLACEHOLDER_DESCRIPTION,
       quote: null,

@@ -17,7 +17,7 @@ const freelanceTab = tabs.find((tab) => tab.kind === 'freelance')
 
 /* Half the shot radius. A browser frame at this size wants a tighter corner than
    a card does, and it is the same halving the case study cover uses. */
-const FRAME_RADIUS = 'rounded-[calc(var(--radius-shot)/2)]'
+const FRAME_RADIUS = 'rounded-[calc(var(--radius-shot))]'
 
 /* Full screen borrows the case studies' timing exactly, since it is the same
    move: the surface grows first and the content arrives once it has stopped. */
