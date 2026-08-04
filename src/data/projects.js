@@ -32,9 +32,10 @@
    not run, which is what the slot is for while a screenshot is still coming. */
 const variableGenerator = '/covers/variable-generator.png'
 
-// Copy still to come for these two, so their cards carry a placeholder sentence.
+// Copy still to come for these three, so their cards carry a placeholder sentence.
 const emeis = '/covers/emeis.png'
 const ceva = '/covers/ceva.png'
+const indesPilot = '/covers/indespilot.png'
 
 /* A study that exists so the card opens and the page can be judged before the
    writing does. Shared on purpose rather than written twice: two identical
@@ -145,10 +146,11 @@ export const projects = [
     drift: -7,
   },
   {
-    id: 'project-04',
-    title: 'Placeholder project. A clear before and after beats a metric.',
+    id: 'indes-pilot',
+    study: placeholderStudy(indesPilot),
+    title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
-    cover: '',
+    cover: indesPilot,
     link: null,
     mat: 'sand',
     x: 73,
