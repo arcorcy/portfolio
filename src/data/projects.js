@@ -14,6 +14,19 @@
  * Layout — the card sits on a coloured mat, and where it sits is part of the
  * design rather than something the code works out:
  * mat      : a key in Work.jsx's MAT map, one colour token per project.
+ * crop     : a key in Work.jsx's CROP map, deciding which corner of the cover is
+ *            the one guaranteed to survive. Optional, and 'top' when left out,
+ *            which centres horizontally and cuts both sides evenly. 'left-top'
+ *            pins the top left instead and puts the whole cut on the right,
+ *            which is what an interface wants: its sidebar and its header are
+ *            the part that says what the thing is, and a panel down the right
+ *            edge is the part that can go.
+ * zoom     : how far to crop into the cover, 1 or absent meaning not at all.
+ *            object-cover alone barely crops here: a 16/9 shot in the card's
+ *            1.666 box already shows 93.7% of its width, so `crop` only decides
+ *            where that 6.3% comes off. A screenshot of a whole interface is
+ *            unreadable at card size, and this is what lets one be cropped into
+ *            until it reads. Anchored on the same corner as `crop`.
  * x / y    : centre of the card, as a percentage of the stage.
  * size     : its width, as a percentage of the stage width.
  * rot      : degrees. Uneven on purpose, dropped rather than aligned.
@@ -151,6 +164,13 @@ export const projects = [
     title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
     cover: indesPilot,
+    /* The only cover that is a full interface edge to edge, and the only one that
+       has to be cropped into to read: at card size the whole screen is a grey
+       texture. Pinned top left and taken in to about the left two thirds, so the
+       sidebar, the header and the first rows carry it while the waiting-spots
+       panel down the right edge takes the cut. */
+    crop: 'left-top',
+    zoom: 1.4,
     link: null,
     mat: 'sand',
     x: 73,

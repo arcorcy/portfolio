@@ -26,6 +26,18 @@ const MAT = {
   sand: 'bg-mat-sand',
 }
 
+/* Which corner of a cover survives the crop, keyed off the project. Whole class
+   names again, for the same reason as the mats.
+
+   The default centres and takes the same sliver off both sides, which is right
+   for a cover with its subject in the middle. An interface has its subject in the
+   corner: the sidebar and the header are what say what the thing is, so pinning
+   the top left puts the whole cut on the right, where a side panel can go. */
+const CROP = {
+  top: 'object-top',
+  'left-top': 'object-left-top',
+}
+
 // How far a card is pushed back while another one holds the attention.
 const DIMMED = 0.1
 
@@ -283,7 +295,24 @@ function Cover({ project, index, lifted }) {
           <img
             src={project.cover}
             alt={project.title}
-            className="h-full w-full object-cover object-top"
+            className={`h-full w-full object-cover ${CROP[project.crop] ?? CROP.top}`}
+            /* The zoom crops into the cover, which object-cover on its own cannot:
+               a 16/9 shot in this 1.666 box already shows 93.7% of its width, so
+               choosing where that 6.3% comes off is the only say the crop has. An
+               interface needs more than that, hence a scale, anchored on the same
+               corner the crop is so the two cannot disagree.
+
+               An inline style rather than a Tailwind class, as everywhere else a
+               transform is computed here, and on the image itself, which is the
+               one layer of the card that owns no transform yet. */
+            style={
+              project.zoom
+                ? {
+                    transform: `scale(${project.zoom})`,
+                    transformOrigin: project.crop === 'left-top' ? 'left top' : 'center top',
+                  }
+                : undefined
+            }
             draggable={false}
           />
         ) : (
