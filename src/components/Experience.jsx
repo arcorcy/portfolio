@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Headline, EASE } from '../lib/motion.jsx'
-import { Dots, Draggable, Tip, bounds, useRefusalTip, useStack } from './Window.jsx'
+import { Dots, Draggable, Tip, bounds, tiltFor, useRefusalTip, useStack } from './Window.jsx'
 import { experience } from '../data/experience.js'
 import Placeholder from './Placeholder.jsx'
 
-const { tabs, refusal } = experience
+const { tabs, refusal, next } = experience
 
 /* The three kinds split the run into three windows, each its own list, each its
    own small app: the employee years in a browser, the two schools in a Notes
@@ -18,6 +18,23 @@ const freelanceTab = tabs.find((tab) => tab.kind === 'freelance')
 /* Half the shot radius. A browser frame at this size wants a tighter corner than
    a card does, and it is the same halving the case study cover uses. */
 const FRAME_RADIUS = 'rounded-[calc(var(--radius-shot))]'
+
+/* The size the windows are drawn at, as a share of the screen they were laid out
+   on. Their sizes are in rem, which a big screen does not grow, so at 1920 they
+   sat small in a field with room for half again as much. Width and height both
+   count, the smaller one wins: a wide, short screen has no more height to give.
+   Never under 1, since 1280×720 is where they were measured to fit, and capped
+   so a 4K screen does not get windows the size of posters. */
+const DESIGNED_FOR = { width: 1440, height: 860 }
+const MAX_SCALE = 1.4
+
+function scaleFor() {
+  const fit = Math.min(
+    window.innerWidth / DESIGNED_FOR.width,
+    window.innerHeight / DESIGNED_FOR.height,
+  )
+  return Math.min(MAX_SCALE, Math.max(1, fit))
+}
 
 /* ------------------------------------------------------------------
    Chrome shared by more than one kind of window
@@ -70,6 +87,8 @@ function Steps({ length, active, onSelect, dark = false }) {
             aria-label={move.label}
             data-cursor={dead ? 'hover' : 'link'}
             className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors duration-300 ${
+              dead ? 'cursor-default' : 'cursor-pointer'
+            } ${
               dead
                 ? dark
                   ? 'text-white/20'
@@ -83,6 +102,28 @@ function Steps({ length, active, onSelect, dark = false }) {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/* The foot of the browser and of Notes. The tab strip and the note list work, but
+   at 11px they read as decoration, not as something to click: this says out loud
+   that there is more behind the one showing. It loops, so it never goes dead the
+   way the arrows do at the ends. */
+function NextButton({ length, active, onSelect, label }) {
+  const last = active === length - 1
+
+  return (
+    <div className="flex shrink-0 justify-end border-t border-line bg-white px-3 py-2.5">
+      <button
+        type="button"
+        onClick={() => onSelect(last ? 0 : active + 1)}
+        data-cursor="link"
+        className="flex cursor-pointer items-center gap-1.5 rounded-full bg-ink py-1.5 pl-3.5 pr-2.5 text-xs font-bold text-white transition-transform duration-300 hover:scale-[1.04]"
+      >
+        {last ? next.restart : label}
+        <Chevron dir={last ? 'prev' : 'next'} />
+      </button>
     </div>
   )
 }
@@ -166,11 +207,13 @@ function Tabs({ active, onSelect }) {
           aria-current={i === active ? 'page' : undefined}
           data-cursor="link"
           title={tab.place}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-t-[7px] px-2 py-1 text-[11px] transition-colors duration-300 ${
-            i === active ? 'bg-white text-ink' : 'text-mute hover:text-ink'
+          className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-t-[8px] border border-b-0 px-2.5 py-1.5 text-[13px] transition-colors duration-300 ${
+            i === active
+              ? 'cursor-default border-line bg-white text-ink shadow-[0_1px_4px_rgba(1,1,2,0.15)]'
+              : 'cursor-pointer border-transparent text-mute hover:bg-white/60 hover:text-ink'
           }`}
         >
-          <Mark tab={tab} className="h-3 w-3 shrink-0 rounded-[3px]" />
+          <Mark tab={tab} className="h-3.5 w-3.5 shrink-0 rounded-[3px]" />
           <span className="min-w-0 truncate">{tab.place}</span>
         </button>
       ))}
@@ -182,9 +225,21 @@ function Bar({ tab, active, onSelect }) {
   return (
     <div className="flex items-center gap-2 border-b border-line bg-white px-2 py-1">
       <Steps length={workTabs.length} active={active} onSelect={onSelect} />
-      <p className="truncate text-[11px] text-mute">
-        {tab.url ?? <span className="italic">url to fill in</span>}
-      </p>
+      {tab.url ? (
+        <a
+          href={tab.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-cursor="link"
+          className="min-w-0 flex-1 truncate text-[11px] text-mute hover:text-ink"
+        >
+          {tab.url}
+        </a>
+      ) : (
+        <p className="min-w-0 flex-1 truncate text-[11px] text-mute">
+          <span className="italic">url to fill in</span>
+        </p>
+      )}
     </div>
   )
 }
@@ -212,6 +267,7 @@ function BrowserFrame({ active, onSelect, tip }) {
         <Page tab={tab} compact />
       </div>
 
+      <NextButton length={workTabs.length} active={active} onSelect={onSelect} label={next.work} />
     </div>
   )
 }
@@ -245,7 +301,7 @@ function NotesFrame({ active, onSelect, tip }) {
                 onClick={() => onSelect(i)}
                 data-cursor="link"
                 className={`block w-full px-2.5 py-2 text-left transition-colors duration-300 ${
-                  i === active ? 'bg-white' : 'hover:bg-white/60'
+                  i === active ? 'cursor-default bg-white' : 'cursor-pointer hover:bg-white/60'
                 }`}
               >
                 <p className="truncate text-[11px] font-bold text-ink">{note.place}</p>
@@ -254,11 +310,18 @@ function NotesFrame({ active, onSelect, tip }) {
             </li>
           ))}
         </ul>
-        <div className="min-h-0 flex-1 overflow-hidden bg-white">
-          <Page tab={tab} compact />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Page tab={tab} compact />
+          </div>
+          <NextButton
+            length={schoolTabs.length}
+            active={active}
+            onSelect={onSelect}
+            label={next.school}
+          />
         </div>
       </div>
-
     </div>
   )
 }
@@ -449,9 +512,21 @@ function SafariApp({ tab }) {
       head={
         <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-white px-2.5 py-1">
           <Mark tab={tab} className="h-3 w-3 shrink-0 rounded-[2px]" />
-          <p className="min-w-0 truncate text-[11px] text-mute">
-            {tab.url ?? <span className="italic">url to fill in</span>}
-          </p>
+          {tab.url ? (
+            <a
+              href={tab.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-cursor="link"
+              className="min-w-0 truncate text-[11px] text-mute hover:text-ink"
+            >
+              {tab.url}
+            </a>
+          ) : (
+            <p className="min-w-0 truncate text-[11px] text-mute">
+              <span className="italic">url to fill in</span>
+            </p>
+          )}
         </div>
       }
     >
@@ -599,6 +674,7 @@ export default function Experience() {
      back. Whichever one is picked up goes above the other two and stays there. */
   const { order, bringToFront } = useStack({ work: 30, freelance: 20, school: 10 })
   const [room, setRoom] = useState({})
+  const [scale, setScale] = useState(1)
   const tip = useRefusalTip()
 
   /* Percentages of the field for the centre of each window, pulled back by half
@@ -647,12 +723,14 @@ export default function Experience() {
     if (!f) return undefined
 
     function measure() {
-      const next = {}
+      const s = scaleFor()
+      const rooms = {}
       windows.forEach((w) => {
         const el = w.ref.current
-        if (el) next[w.kind] = bounds(f, el)
+        if (el) rooms[w.kind] = bounds(f, el, s)
       })
-      setRoom(next)
+      setScale(s)
+      setRoom(rooms)
     }
     measure()
 
@@ -702,6 +780,8 @@ export default function Experience() {
             height={spec.height}
             room={room[spec.kind]}
             zIndex={order[spec.kind]}
+            tilt={tiltFor(spec.kind)}
+            scale={scale}
             onFront={() => bringToFront(spec.kind)}
           >
             {spec.render()}

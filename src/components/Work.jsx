@@ -1,50 +1,48 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   AnimatePresence,
+  animate,
   motion,
+  useInView,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
-  useSpring,
   useTransform,
 } from 'framer-motion'
-import { Headline, EASE } from '../lib/motion.jsx'
-import { Dots, Draggable, Tip, bounds, useRefusalTip, useStack, FRAME_RADIUS } from './Window.jsx'
+import { Headline, EASE, PINNED_EXIT } from '../lib/motion.jsx'
 import { work } from '../data/content.js'
 import { projects } from '../data/projects.js'
-import Arrow from './Arrow.jsx'
-import Placeholder from './Placeholder.jsx'
 import Study from './Study.jsx'
 
-// How far a window is pushed back while another one holds the attention.
-const DIMMED = 0.1
+/* The ring is WebGL, Three.js and all: loaded on its own so the hero does not
+   wait for it. */
+const Ring = lazy(() => import('./Ring.jsx'))
 
-/* The resting stack, in the order the data lists them, so the last project starts
-   on top. Whichever window is picked up goes above the rest and stays there. */
-const REST_ORDER = Object.fromEntries(projects.map((project, i) => [project.id, 10 + i]))
+/* Scroll length of one project, in svh. The track is one screen for the panel
+   plus this much per step between two projects, and each step turns the ring
+   by one case. */
+const PER_PROJECT = 80
 
-/* The strip has no pointer to answer, so its frames are handed a tip that does
-   nothing rather than a live one: the buttons are still drawn, and still refuse. */
-const INERT_TIP = { onRefuse: undefined, onRest: undefined }
+/* The scroll is segmented: one wheel gesture is one project. STEP is how long
+   the page takes to travel to the next case. QUIET is the silence a gesture
+   has to end on before the next one counts: a trackpad keeps firing its
+   inertia for most of a second after the fingers lift, and without it one
+   swipe would run through every project. NUDGE is the smallest delta that
+   counts as a gesture, under which a trackpad's resting jitter would step.
 
-/* At least 24px between a window and its copy, and the measurement that counts is
-   against the frame's edge. */
-const COPY_GAP = 44
-const COPY_WIDTH = 82
-
-/* The copy is anchored past the window's right edge and slides to the left side
-   when it needs to. The whole distance is the window, the copy and both gaps, and
-   it can be written without measuring anything: the copy is COPY_WIDTH percent of
-   the window, so the window is that ratio's inverse in units of the copy. Only
-   the two gaps are pixels, which is why the travel ends up as a calc. */
-const FLIP_SPAN = 100 + (100 / COPY_WIDTH) * 100
-
-function flipX(t) {
-  return `calc(${(-FLIP_SPAN * t).toFixed(3)}% - ${(2 * COPY_GAP * t).toFixed(1)}px)`
-}
-
-/* The side swap is a spring rather than a piece of state, so it slides instead of
-   jumping and no render happens while a window crosses the middle. */
-const FLIP = { stiffness: 130, damping: 20, mass: 0.9 }
+   Silence alone is not enough to find where a gesture starts: someone swiping
+   again before the last swipe's inertia has died out never leaves a gap, and
+   every swipe after the first was swallowed. Inertia only ever decays, so a
+   delta that jumps above the one before it (RISE, from at least RISE_FROM) or
+   flips direction is a new swipe too. RISE_GAP is the least time between two
+   swipes found that way, so a mouse wheel whose deltas accelerate as it spins
+   does not read as a burst of gestures. */
+const STEP = 0.9
+const QUIET = 180
+const NUDGE = 4
+const RISE = 1.3
+const RISE_FROM = 8
+const RISE_GAP = 250
 
 /* ------------------------------------------------------------------
    The title, which starts life as a teaser at the foot of the hero: it
@@ -114,9 +112,21 @@ function Teaser({ reduce }) {
       const el = home.current
       if (!el) return
       const vh = window.innerHeight
-      // The centre, not the top: a scale about the centre leaves it put, so
-      // the aim holds whatever size the teaser is drawn at.
-      const centre = el.getBoundingClientRect().top + el.offsetHeight / 2 + window.scrollY
+      /* Where the title rests on the page, worked out as if its panel were not
+         pinned: the section's own top, which never sticks, plus how far down the
+         panel the title sits, which sticking does not change. Read straight off
+         the title's box, a load or a resize landing mid-pin measured the stuck
+         position and threw the teaser hundreds of pixels off.
+
+         The centre, not the top: a scale about the centre leaves it put, so the
+         aim holds whatever size the teaser is drawn at. */
+      const section = el.closest('section')
+      const panel = section.firstElementChild
+      const centre =
+        section.getBoundingClientRect().top +
+        window.scrollY +
+        (el.getBoundingClientRect().top - panel.getBoundingClientRect().top) +
+        el.offsetHeight / 2
       const over = Math.max(1, centre - LAND_AT * vh)
       setGeometry({ from: TEASER_AT * vh - centre, over })
       // Settled here too, not only on scroll: a resize moves the threshold, and
@@ -185,7 +195,15 @@ function Teaser({ reduce }) {
           {/* The exit measures the title's own travel, so nothing has to be
               passed in and it cannot end up hung on the section's progress, where
               the title had left the screen long before the range began. */}
-          <Headline lines={work.title} className="display-lg text-center" shown={shown} exit />
+          <Headline
+            lines={work.title}
+            className="display-lg text-center"
+            shown={shown}
+            exit
+            /* It rests pinned in the panel on a wide screen, so it needs the
+               window that opens above where it rests. */
+            exitOffset={PINNED_EXIT}
+          />
           {!reduce && <Nudge opacity={nudge} />}
         </a>
       </motion.div>
@@ -194,286 +212,206 @@ function Teaser({ reduce }) {
 }
 
 /* ------------------------------------------------------------------
-   The frame a shot is shown in.
+   Stepping, one project per wheel gesture, while the panel is pinned.
 
-   Two of the four shots already open on a header of their own, the Figma plugin
-   dialog on Figma's and the CEVA file on a macOS one, so those are framed with
-   nothing but a rounded corner: drawing a second header over them would be two
-   headers deep. The other two get one drawn here, which is what `chrome` in the
-   data picks.
-
-   The shot is never cropped. Its own proportions decide the window's height,
-   which is why nothing here sets one and why the data no longer carries a mat, a
-   crop or a zoom: the frame is the container now.
+   The scroll owns which case is in front, and nothing else writes it, which is
+   why every way of moving (a wheel gesture, a click on a case at the side, a
+   keyboard focus) scrolls the page to that case's spot rather than setting
+   state the next frame would undo.
    ------------------------------------------------------------------ */
-function MacBar({ project, tip }) {
-  return (
-    <div className="flex items-center gap-2 border-b border-line bg-paper px-2.5 py-2">
-      <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
-      <p className="min-w-0 flex-1 truncate text-[11px] font-bold text-mute">
-        {project.label ?? project.subtitle}
-      </p>
-    </div>
-  )
+function useSteps(track, progress, last) {
+  /* Animated by hand and not with behavior: 'smooth', to know exactly when it
+     lands and to ease it with the site's one curve. Each frame's scroll is
+     spelled out as instant: html carries scroll-behavior: smooth, under which a
+     bare scrollTo starts a native glide of its own, restarted every frame. */
+  const travel = useRef(null)
+  // The case the page is travelling to, which is where a swipe landing mid-travel counts from.
+  const dest = useRef(0)
+  /* The wheel gesture under way: when its last event came, how big and which
+     way it went, when it began, and whether it was handed back to the page. */
+  const gesture = useRef({ at: 0, size: 0, sign: 0, start: 0, free: false })
+
+  function go(i) {
+    const box = track.current
+    if (!box || i < 0 || i > last) return
+    dest.current = i
+    const top = box.getBoundingClientRect().top + window.scrollY
+    const run = box.offsetHeight - window.innerHeight
+    travel.current?.stop()
+    travel.current = animate(window.scrollY, top + (i / Math.max(1, last)) * run, {
+      duration: STEP,
+      ease: EASE,
+      onUpdate: (v) => window.scrollTo({ top: v, behavior: 'instant' }),
+      onComplete: () => {
+        travel.current = null
+      },
+    })
+  }
+
+  /* One gesture, one project. Only while the panel is pinned, and only when
+     there is a case to go to in that direction: past the first or the last,
+     the wheel is handed back to the page and the section scrolls away as any
+     other would, for the rest of that gesture. Everything else a gesture sends
+     after its first event is swallowed, which is what makes it stop on the
+     case instead of sliding through. */
+  useEffect(() => {
+    function onWheel(e) {
+      const box = track.current
+      if (!box) return
+      /* A study is portalled to the body, so its wheel still bubbles up to
+         window, and the panel behind it is still pinned: without this the
+         gesture was swallowed here and the study could not scroll at all. */
+      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
+
+      const now = performance.now()
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+      const size = Math.abs(delta)
+      const sign = Math.sign(delta)
+      const g = gesture.current
+      const fresh =
+        now - g.at >= QUIET ||
+        (now - g.start >= RISE_GAP &&
+          ((sign !== 0 && sign !== g.sign) || (size >= RISE_FROM && size > g.size * RISE)))
+      g.at = now
+      g.size = size
+      if (sign) g.sign = sign
+      if (fresh) g.start = now
+
+      const rect = box.getBoundingClientRect()
+      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) {
+        // A gesture that carries the page into the pin stops there.
+        g.free = false
+        return
+      }
+
+      if (!fresh || size < NUDGE) {
+        if (!g.free) e.preventDefault()
+        return
+      }
+
+      let to
+      if (travel.current) {
+        to = dest.current + sign
+      } else {
+        const f = progress.get() * last
+        to = sign > 0 ? Math.floor(f + 0.05) + 1 : Math.ceil(f - 0.05) - 1
+      }
+      if (to < 0 || to > last) {
+        g.free = !travel.current
+        if (!g.free) e.preventDefault()
+        return
+      }
+
+      g.free = false
+      e.preventDefault()
+      go(to)
+    }
+
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      travel.current?.stop()
+    }
+  }, [])
+
+  return go
 }
 
-function BrowserBar({ project, tip }) {
-  return (
-    <div className="flex items-center gap-2 border-b border-line bg-paper px-2.5 py-2">
-      <Dots onRefuse={tip.onRefuse} onRest={tip.onRest} />
-      <div className="flex min-w-0 flex-1 rounded-full bg-white px-2 py-0.5">
-        <p className="min-w-0 truncate text-[10px] text-mute">
-          {project.url ?? <span className="italic">url to fill in</span>}
-        </p>
-      </div>
-    </div>
-  )
+/* ------------------------------------------------------------------
+   Turning the ring by hand: a horizontal drag anywhere on the stage.
+
+   The scroll still owns which case is in front, so a drag scrolls the page,
+   DRAG_PER_CASE of the screen's width per case, and the ring follows it the way
+   it follows the wheel. Letting go lands on a case: the one the drag was
+   heading for once it has gone LAND_AFTER of the way there, else back.
+
+   A drag is only a drag past DRAG_FROM pixels. Under that it is a click and is
+   left alone, which is why the pointer is captured only then: captured from the
+   first press, the canvas below would never hear the click that opens a case.
+   ------------------------------------------------------------------ */
+const DRAG_PER_CASE = 0.3
+const DRAG_FROM = 6
+const LAND_AFTER = 0.2
+
+function useDrag(track, progress, last, go, off) {
+  const drag = useRef(null)
+  // Whether the gesture that just ended was a drag, read by the click after it.
+  const dragged = useRef(false)
+
+  function run() {
+    const box = track.current
+    return box ? box.offsetHeight - window.innerHeight : 0
+  }
+
+  function onPointerDown(e) {
+    if (off || (e.pointerType === 'mouse' && e.button !== 0)) return
+    dragged.current = false
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: window.scrollY, on: false }
+  }
+
+  function onPointerMove(e) {
+    const d = drag.current
+    if (!d || d.id !== e.pointerId) return
+    const dx = e.clientX - d.x
+    if (!d.on) {
+      // A vertical move on a phone is the page's scroll, not a drag.
+      if (Math.abs(dx) < DRAG_FROM || Math.abs(dx) < Math.abs(e.clientY - d.y)) return
+      d.on = true
+      dragged.current = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    const box = track.current
+    const top = box.getBoundingClientRect().top + window.scrollY
+    const perCase = run() / Math.max(1, last)
+    const y = d.from - (dx / (window.innerWidth * DRAG_PER_CASE)) * perCase
+    window.scrollTo({ top: Math.min(top + run(), Math.max(top, y)), behavior: 'instant' })
+  }
+
+  function onPointerUp(e) {
+    const d = drag.current
+    drag.current = null
+    if (!d?.on) return
+    const f = progress.get() * last
+    const dx = e.clientX - d.x
+    go(dx < 0 ? Math.ceil(f - LAND_AFTER) : Math.floor(f + LAND_AFTER))
+  }
+
+  return {
+    dragged,
+    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+  }
 }
 
-const CHROME = { macos: MacBar, browser: BrowserBar }
-
-function Frame({ project, index, tip, lifted }) {
-  const Bar = CHROME[project.chrome]
-
+/* ------------------------------------------------------------------
+   The title of the case in front, at the foot of the screen like a film's
+   subtitle: white on a dark band per line, so it reads over whatever the ring
+   puts behind it. The kind of project goes first in brackets, the way subtitles
+   for the hard of hearing set a sound apart from speech.
+   ------------------------------------------------------------------ */
+function Subtitle({ project, hidden }) {
   return (
     <div
-      /* Two shadows, and the gap between them is the point: just enough at rest
-         to tell which window is over which, then a real lift under the one being
-         pointed at. */
-      className={`overflow-hidden border border-line bg-white transition-shadow duration-500 ${FRAME_RADIUS} ${
-        lifted
-          ? 'shadow-[0_20px_48px_-24px_rgba(1,1,2,0.22)]'
-          : 'shadow-[0_8px_22px_-14px_rgba(1,1,2,0.1)]'
-      }`}
+      aria-live="polite"
+      className="pointer-events-none absolute inset-x-0 bottom-[7svh] z-10 flex justify-center px-[var(--gutter)]"
     >
-      {Bar && <Bar project={project} tip={tip} />}
-      {project.cover ? (
-        <img
-          src={project.cover}
-          alt={project.title}
-          /* block, so no baseline gap under it, and no height: the shot keeps its
-             own proportions and the window takes them. */
-          className="block w-full"
-          draggable={false}
-        />
-      ) : (
-        <Placeholder seed={index} className="aspect-[16/10] w-full" />
-      )}
-    </div>
-  )
-}
-
-function Copy({ project, className = '' }) {
-  return (
-    <div className={className}>
-      <h3 className="display-sm">{project.title}</h3>
-      <p className="mt-3 text-base text-mute">{project.subtitle}</p>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------
-   One window on the stage.
-
-   The behaviour is the shared one, the same as the experiences: dragged inside the
-   field, a little momentum, a small lift under the pointer, and it stays on top
-   once it has been picked up. Nothing rotates, floats or drifts with the scroll
-   any more, and there is no lean on a throw: a window is an object on a desk.
-
-   Anchored by its top left rather than its centre, unlike an experience window.
-   Those have a height in the data; these take theirs from a shot that is never
-   cropped, so there is no half-height to give back and nothing to measure.
-
-   The copy is a child of the drag layer and sits just beside the window, so it
-   travels with it and the link between the two is never in doubt. It stays out of
-   the hover layer: text that scales is text nobody reads.
-   ------------------------------------------------------------------ */
-function Card({ project, index, field, spot, room, active, dim, onEnter, onLeave, onOpen, tip, z, onFront }) {
-  const ref = useRef(null)
-  // A drag ends in a click too. Framer only fires onDragStart past its
-  // threshold, so this stays false for a plain press.
-  const dragged = useRef(false)
-  const geometry = useRef(null)
-  const settled = useRef(project.x + project.size / 2 <= 50 ? 'right' : 'left')
-
-  const flip = useSpring(settled.current === 'right' ? 0 : 1, FLIP)
-  const copyX = useTransform(flip, flipX)
-  // A dip through the middle of the crossing, where the copy passes the window.
-  const crossing = useTransform(flip, [0, 0.5, 1], [1, 0.45, 1])
-
-  /* Which side the copy sits on is decided against the middle of the field, and
-     rechecked while the window is dragged: carry a left one over to the right and
-     its copy moves round rather than running off the edge. Measured once per
-     drag, not once per frame. */
-  function onDragStart() {
-    onFront()
-    dragged.current = true
-    if (!ref.current || !field.current) return
-    const win = ref.current.getBoundingClientRect()
-    const box = field.current.getBoundingClientRect()
-    geometry.current = { centre: win.left + win.width / 2, middle: box.left + box.width / 2 }
-  }
-
-  function pick(next) {
-    if (next === settled.current) return
-    settled.current = next
-    flip.set(next === 'right' ? 0 : 1)
-  }
-
-  function onDrag(_, info) {
-    if (!geometry.current) return
-    pick(info.offset.x + geometry.current.centre <= geometry.current.middle ? 'right' : 'left')
-  }
-
-  /* The window keeps gliding after it is released and onDrag has stopped firing,
-     so one thrown across the middle would keep its copy on the old side.
-     Measured again once the glide has settled. */
-  function onDragTransitionEnd() {
-    if (!ref.current || !field.current) return
-    const win = ref.current.getBoundingClientRect()
-    const box = field.current.getBoundingClientRect()
-    pick(win.left + win.width / 2 <= box.left + box.width / 2 ? 'right' : 'left')
-  }
-
-  return (
-    <Draggable
-      innerRef={(el) => {
-        ref.current = el
-        spot(el)
-      }}
-      anchor="topLeft"
-      left={`${project.x}%`}
-      top={`${project.y}%`}
-      width={`${project.size}%`}
-      room={room}
-      zIndex={active ? 500 : z}
-      onFront={onFront}
-      onEnter={onEnter}
-      onLeave={onLeave}
-      onDrag={onDrag}
-      onDragStart={onDragStart}
-      onDragTransitionEnd={onDragTransitionEnd}
-      cursor={project.study ? 'link' : 'hover'}
-      onClick={() => {
-        if (dragged.current) {
-          dragged.current = false
-          return
-        }
-        if (project.study && ref.current) onOpen(project, ref.current.getBoundingClientRect())
-      }}
-    >
-      <motion.div
-        initial={false}
-        animate={{ opacity: dim ? DIMMED : 1 }}
-        transition={{ duration: 0.55, ease: EASE }}
-      >
-        <Frame project={project} index={index} tip={tip} lifted={active} />
-      </motion.div>
-
-      {/* One anchor, just past the window's right edge, and a single translation
-          that carries the copy round to the left when it crosses the middle. Two
-          competing anchors could not be animated between. */}
-      <motion.div
-        className="pointer-events-none absolute"
-        style={{
-          left: '100%',
-          top: '50%',
-          marginLeft: COPY_GAP,
-          width: `${COPY_WIDTH}%`,
-          x: copyX,
-          y: '-50%',
-          opacity: crossing,
-        }}
-      >
-        <motion.div
-          initial={false}
-          animate={{ opacity: active ? 1 : 0, y: active ? 0 : 12 }}
-          transition={{ duration: 0.45, ease: EASE }}
-        >
-          <Copy project={project} />
-        </motion.div>
-      </motion.div>
-    </Draggable>
-  )
-}
-
-/* ------------------------------------------------------------------
-   Below lg: the cards in a row you can swipe, or step through with the
-   arrows, and the copy underneath.
-   ------------------------------------------------------------------ */
-function Strip({ onOpen }) {
-  const strip = useRef(null)
-  const [at, setAt] = useState(0)
-
-  // Nearest card to the middle of the viewport, measured off the real
-  // elements so the gap and the edge padding cannot throw the count off.
-  function onScroll() {
-    const el = strip.current
-    if (!el) return
-    const middle = el.scrollLeft + el.clientWidth / 2
-    let best = 0
-    let closest = Infinity
-    Array.from(el.children).forEach((child, i) => {
-      const distance = Math.abs(child.offsetLeft + child.offsetWidth / 2 - middle)
-      if (distance < closest) {
-        closest = distance
-        best = i
-      }
-    })
-    setAt(best)
-  }
-
-  function step(delta) {
-    const el = strip.current
-    const child = el?.children[at + delta]
-    if (!child) return
-    el.scrollTo({
-      left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2,
-      behavior: 'smooth',
-    })
-  }
-
-  return (
-    <div className="mt-12 lg:hidden">
-      <div
-        ref={strip}
-        onScroll={onScroll}
-        className="mx-[calc(var(--gutter)*-1)] flex snap-x snap-mandatory gap-4 overflow-x-auto px-[var(--gutter)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {projects.map((project, i) => (
-          <div key={project.id} className="w-[84%] shrink-0 snap-center sm:w-[62%]">
-            <div
-              onClick={(e) => {
-                if (project.study) onOpen(project, e.currentTarget.getBoundingClientRect())
-              }}
-            >
-              {/* The same frame as on the stage, and no fixed ratio: the shot
-                  keeps its own proportions here too. tip is inert on a phone,
-                  where nothing is pointed at, so the buttons are drawn and go
-                  nowhere. */}
-              <Frame project={project} index={i} tip={INERT_TIP} lifted={i === at} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Reserved height: the titles run from one to four lines, and the arrows
-          below them should not jump every time the strip moves on. */}
-      <div className="mt-10 min-h-[8.5rem]">
-        <motion.div
-          key={projects[at].id}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: EASE }}
-        >
-          <Copy project={projects[at]} />
-        </motion.div>
-      </div>
-
-      <div className="mt-6 flex gap-2">
-        <Arrow dir="prev" onClick={() => step(-1)} label="Previous project" />
-        <Arrow dir="next" onClick={() => step(1)} label="Next project" />
-      </div>
+      <AnimatePresence mode="wait">
+        {!hidden && (
+          <motion.p
+            key={project.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="max-w-[44rem] text-center text-[clamp(1.05rem,1.7vw,1.5rem)] font-semibold leading-[1.75] text-white"
+          >
+            {/* box-decoration-break: clone gives each wrapped line its own band,
+                which is what makes it read as a subtitle and not as a label. */}
+            <span className="rounded-[4px] bg-ink/85 px-[0.4em] py-[0.12em] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]">
+              <span className="opacity-70">[{project.subtitle}]</span> {project.title}
+            </span>
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -482,38 +420,51 @@ function Strip({ onOpen }) {
 export default function Work() {
   const reduce = useReducedMotion()
   const section = useRef(null)
-  // Where the windows live, and how far they may go. Two different boxes.
-  const stage = useRef(null)
-  const field = useRef(null)
-  const [hovered, setHovered] = useState(null)
-  // The rect the surface grows from is captured at the click, not recomputed:
-  // it is where the window was when it was pressed.
+  const last = projects.length - 1
+  const { scrollYProgress } = useScroll({ target: section, offset: ['start start', 'end end'] })
+  const go = useSteps(section, scrollYProgress, last)
+  const [active, setActive] = useState(0)
+  /* Two steps to opening: `opened` is the case on its way into the camera, and
+     `study` the copy that fades in once it has arrived. */
+  const [opened, setOpened] = useState(null)
   const [study, setStudy] = useState(null)
-  const { order, bringToFront } = useStack(REST_ORDER)
-  // One element per window, for the observer that measures how far each may go.
-  const spots = useRef(new Map())
-  const tip = useRefusalTip()
-  const [room, setRoom] = useState({})
+  const onScreen = useInView(section, { margin: '20% 0px' })
+  const { dragged, handlers } = useDrag(section, scrollYProgress, last, go, Boolean(opened))
 
-  function open(project, from) {
-    setStudy({ project, from })
+  useMotionValueEvent(scrollYProgress, 'change', (p) =>
+    setActive(Math.min(last, Math.max(0, Math.round(p * last)))),
+  )
+
+  /* A case at the side comes to the front first; the one in front opens. */
+  function pick(id) {
+    const i = projects.findIndex((p) => p.id === id)
+    // The release of a drag also lands on a case as a click: it is not one.
+    if (i < 0 || opened || dragged.current) return
+    if (i !== active) return go(i)
+    if (projects[i].study) setOpened(id)
   }
 
-  /* The page behind is sealed for exactly as long as a study is meant to be
-     open: no scrolling, and inert takes it out of the tab order and the
-     accessibility tree in one attribute, which a z-index alone would not do.
-     Released the moment the study closes rather than when its exit animation
-     ends, so a stalled animation can never strand the page. */
+  function close() {
+    setStudy(null)
+    setOpened(null)
+  }
+
+  /* The page behind is sealed for exactly as long as a case is opening or a
+     study is open: no scrolling, which would turn the ring under the camera,
+     and inert takes it out of the tab order and the accessibility tree in one
+     attribute. Released the moment the study closes rather than when its exit
+     animation ends, so a stalled animation can never strand the page. */
+  const sealed = Boolean(opened || study)
   useEffect(() => {
-    if (!study) return undefined
+    if (!sealed) return undefined
 
     const root = document.getElementById('root')
     const html = document.documentElement
 
     /* Locked on html, not on body. When html is `overflow: visible`, the body's
        own overflow does not propagate to the viewport, so hiding it there locks
-       nothing: the page keeps scrolling behind the study. The gutter is paid
-       back as padding so a platform with classic scrollbars does not jump. */
+       nothing. The gutter is paid back as padding so a platform with classic
+       scrollbars does not jump. */
     const wasOverflow = html.style.overflow
     const wasPadding = html.style.paddingRight
     const bar = window.innerWidth - html.clientWidth
@@ -527,139 +478,64 @@ export default function Work() {
       html.style.paddingRight = wasPadding
       root?.removeAttribute('inert')
     }
-  }, [study])
-
-  const { scrollYProgress } = useScroll({
-    target: section,
-    offset: ['start end', 'end start'],
-  })
-
-  /* Measured off the field, not off the page: the field being resized by the
-     viewport is what the observer catches, and the listener catches the frames a
-     document that is not painting cannot deliver to it. */
-  useEffect(() => {
-    const box = field.current
-    if (!box) return undefined
-
-    function measure() {
-      const next = {}
-      spots.current.forEach((el, id) => {
-        if (el) next[id] = bounds(box, el)
-      })
-      setRoom(next)
-    }
-    measure()
-
-    const observer = new ResizeObserver(measure)
-    observer.observe(box)
-    window.addEventListener('resize', measure)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [])
+  }, [sealed])
 
   return (
     <section
       id="work"
       ref={section}
-      /* The gap before the dark section lives on the Mesh wrapper, not here: the
-         grid has to cover it, and a margin would fall outside the wrapper.
-
-         overflow-x-clip, not hidden: a card may be pulled past the field by
-         dragElastic, and clip stops that from ever reaching the document as a
-         horizontal scrollbar without turning the section into a scroll container,
-         which hidden would do. relative, because the field hangs off this box.
-
-         No justify-center: the field below is flex-1, and flex-grow claims any
-         leftover space before justify-content sees it, so centering the pair had
-         nothing left to distribute. The gap above the teaser is the padding doing
-         the whole job on its own, so it is written out: lg:pt-32 to match the
-         other sections, which all give their title 128px and left this one at 64
-         nearly touching the nav. */
-      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:pb-16 lg:pt-32"
+      /* The track: one screen for the panel plus PER_PROJECT per step, at every
+         width. The gap before the dark section lives on the Mesh wrapper. */
+      className="relative h-[var(--track)]"
+      style={{ '--track': `${100 + last * PER_PROJECT}svh` }}
     >
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Teaser reduce={reduce} />
-      </div>
-
-      {/* How far a card may travel, which is no longer where it lives.
-
-          The stage is the arrangement: the card positions are percentages of it.
-          The field is the room, and it takes what the section has left once the
-          title has had its share, so a card can be carried out over the margin to
-          the edge of the screen but never over the heading. That is why it is a
-          flex item below the title rather than a box pinned to the section: no
-          measuring, and it cannot fall out of step with a title that changes
-          height.
-
-          The negative margin is what lets it out of the gutter: 2.75rem minus the
-          gutter, so its edges land 2.75rem off the screen whatever the breakpoint
-          has made the gutter.
-
-          2.75rem, because the drag box is not what the eye sees: the card is
-          rotated and, while pointed at, scaled. Measured against the real data at
-          the 1400px the stage caps at, the corner of the widest card passes its own
-          box by 28px at rest after a throw, by 40px while it is also being pointed
-          at, and by 58px at the peak of the lean mid-throw. 2.75rem clears the
-          first two, which are the states a card sits in.
-
-          The third is what overflow-x-clip on the section is for, along with the
-          overshoot dragElastic allows: both are transient, and the point of the
-          clip is only that neither can ever reach the document as a scrollbar. */}
-      <div
-        ref={field}
-        className="relative z-10 mx-[calc(2.75rem-var(--gutter))] mt-6 hidden flex-1 items-center justify-center lg:flex"
-      >
-        {/* The stage. A fixed ratio, capped so the whole constellation always
-            fits one screen: the positions in the data are percentages of this
-            box, so they hold their arrangement at any size. */}
-        <div
-          ref={stage}
-          className="relative aspect-[16/9] w-full max-w-[min(124svh,1400px)]"
-        >
-          {projects.map((project, i) => (
-            <Card
-              key={project.id}
-              project={project}
-              index={i}
-              field={field}
-              spot={(el) => spots.current.set(project.id, el)}
-              room={room[project.id]}
-              active={hovered === project.id}
-              dim={hovered !== null && hovered !== project.id}
-              onEnter={() => setHovered(project.id)}
-              onLeave={() => setHovered(null)}
-              onOpen={open}
-              tip={tip}
-              z={order[project.id]}
-              onFront={() => bringToFront(project.id)}
+      {/* overflow-clip, not hidden: hidden would make the panel a scroll
+          container, which useScroll would take for the one the title lives in.
+          z-10 on the panel itself, since sticky makes it a stacking context and
+          the grid, painted after the section, would otherwise go over it. */}
+      <div className="sticky top-0 z-10 h-svh overflow-clip">
+        <div className="absolute inset-0 cursor-grab select-none active:cursor-grabbing" {...handlers}>
+          <Suspense fallback={null}>
+            <Ring
+              projects={projects}
+              position={scrollYProgress}
+              opened={opened}
+              reduce={reduce}
+              running={onScreen && !study}
+              onPick={pick}
+              onDived={(id) => setStudy(projects.find((p) => p.id === id) ?? null)}
             />
-          ))}
+          </Suspense>
         </div>
 
-        <AnimatePresence>{tip.tip && <Tip tip={tip.tip}>{work.refusal}</Tip>}</AnimatePresence>
-      </div>
+        <div className="gutter pointer-events-none relative z-10 mx-auto w-full max-w-[1400px] pt-24 [&_a]:pointer-events-auto">
+          <Teaser reduce={reduce} />
+        </div>
 
-      {/* Outside the field, which is hidden below lg: the strip is the only thing
-          on screen at those widths. The margin lives on the strip itself, not on a
-          wrapper, since a wrapper keeps its margin on a wide screen even once its
-          content is hidden, and the section stopped fitting one viewport by
-          exactly that much. */}
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Strip onOpen={open} />
+        <Subtitle project={projects[active]} hidden={Boolean(opened)} />
+
+        {/* The keyboard's and the screen reader's way in: one button per case.
+            Focusing one brings its case to the front, so a sighted keyboard user
+            sees where they are. */}
+        <ul className="sr-only">
+          {projects.map((project, i) =>
+            project.study ? (
+              <li key={project.id}>
+                <button
+                  type="button"
+                  onFocus={() => go(i)}
+                  onClick={() => setOpened(project.id)}
+                >
+                  {work.open} {project.title}
+                </button>
+              </li>
+            ) : null,
+          )}
+        </ul>
       </div>
 
       <AnimatePresence>
-        {study && (
-          <Study
-            key={study.project.id}
-            project={study.project}
-            from={study.from}
-            onClose={() => setStudy(null)}
-          />
-        )}
+        {study && <Study key={study.id} project={study} onClose={close} />}
       </AnimatePresence>
     </section>
   )

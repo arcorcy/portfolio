@@ -139,14 +139,41 @@ export function useRefusalTip() {
    measures, so a viewport short enough for a window to be taller than the field
    cannot produce a range with its ends crossed, which Framer would answer by
    snapping the window off its own spot.
+
+   scale is the one a window is drawn at, on top of its layout box. The offsets
+   above are that layout box, and a window scaled about its centre spills past it
+   by half the difference on each side: that spill comes off each end, or a
+   scaled window could be carried half off the field.
    ------------------------------------------------------------------ */
-export function bounds(field, win) {
+export function bounds(field, win, scale = 1) {
+  const dx = ((scale - 1) * win.offsetWidth) / 2
+  const dy = ((scale - 1) * win.offsetHeight) / 2
+
   return {
-    left: Math.min(0, -win.offsetLeft),
-    right: Math.max(0, field.clientWidth - win.offsetLeft - win.offsetWidth),
-    top: Math.min(0, -win.offsetTop),
-    bottom: Math.max(0, field.clientHeight - win.offsetTop - win.offsetHeight),
+    left: Math.min(0, dx - win.offsetLeft),
+    right: Math.max(0, field.clientWidth - win.offsetLeft - win.offsetWidth - dx),
+    top: Math.min(0, dy - win.offsetTop),
+    bottom: Math.max(0, field.clientHeight - win.offsetTop - win.offsetHeight - dy),
   }
+}
+
+/* A little life, not a coincidence: a fixed lean, one per window and picked
+   once from its own id rather than Math.random(), so the same window leans the
+   same way on every render instead of jittering whenever an unrelated state
+   change repaints it. Spread over the whole range on both sides of zero,
+   including through it, so an occasional flat window still reads as incidental
+   rather than as a rule with an exception.
+
+   It is handed to Draggable and applied there, on the one element that already
+   owns a transform. Putting it on any layer between the drag layer and the
+   window's own clipping frame is what broke the shot inside its mat: see the
+   note in CLAUDE.md before moving it. */
+const TILT_RANGE = 3
+
+export function tiltFor(seed) {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0
+  return ((Math.abs(hash) % 2001) / 1000 - 1) * TILT_RANGE
 }
 
 /* ------------------------------------------------------------------
@@ -174,6 +201,9 @@ export function Draggable({
   onClick,
   anchor = 'centre',
   cursor = 'hover',
+  tilt = 0,
+  scale = 1,
+  shadow = true,
   className = '',
   children,
 }) {
@@ -196,7 +226,9 @@ export function Draggable({
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onClick={onClick}
-      whileHover={HOVER}
+      /* The lift is relative to whatever size the window is drawn at, or a
+         scaled window would shrink back to its layout size under the pointer. */
+      whileHover={{ scale: scale * HOVER.scale }}
       transition={LIFT}
       data-cursor={cursor}
       style={{
@@ -211,10 +243,26 @@ export function Draggable({
         marginLeft: anchor === 'centre' ? `calc(${width} * -0.5)` : undefined,
         marginTop: anchor === 'centre' && height ? `calc(${height} * -0.5)` : undefined,
         zIndex,
+        /* Folded into this layer's own transform rather than given a wrapper of
+           its own, so a window is a single transformed box from the drag layer
+           down to the frame that clips. */
+        rotate: tilt ? `${tilt}deg` : undefined,
+        /* Same layer, same reason: the size a caller draws its windows at on a
+           big screen. Framer applies translate before scale, so the drag itself
+           still moves the window one pixel per pixel of pointer. */
+        scale,
         x,
         y,
       }}
-      className={`absolute cursor-grab shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)] active:cursor-grabbing ${FRAME_RADIUS} ${className}`}
+      /* The drop shadow is optional because it sits on this layer, which is
+         outside whatever the caller fades inside. An experience window wants it:
+         its frames carry no shadow of their own and nothing recedes. A works
+         window does not: its frame has its own pair of shadows, inside the layer
+         that fades, so a shadow here would stay at full strength around a window
+         that had just receded. */
+      className={`absolute cursor-grab active:cursor-grabbing ${
+        shadow ? 'shadow-[0_28px_60px_-28px_rgba(1,1,2,0.3)]' : ''
+      } ${FRAME_RADIUS} ${className}`}
     >
       {children}
     </motion.div>
