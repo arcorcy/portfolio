@@ -35,7 +35,13 @@ export const hero = {
 }
 
 export const work = {
+  /* What the three dead window buttons say when pointed at. They are there to be
+     tried, not to work, and this is the works section answering for its own. */
+  refusal: 'Nice try. Click the window itself.',
   title: ["Things I've shipped"],
+  /* The DVD ring is a canvas, which a screen reader and a keyboard cannot reach,
+     so each case also has a button. Its label is this, then the project title. */
+  open: 'Open the case study:',
 }
 
 /*

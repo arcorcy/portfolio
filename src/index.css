@@ -23,15 +23,6 @@
      reads as a faint one, so a single grid can cross both. */
   --color-mesh: rgba(140, 140, 140, 0.1224);
 
-  /* Project mats — the coloured card each cover sits on in the Work section.
-     These are not accents and they do not compete with the lime: they belong
-     to a project, they only ever appear behind a cover, and there is exactly
-     one per project so the constellation is readable at a glance. */
-  --color-mat-pink: #ECE9E2;
-  --color-mat-orange: #ECE9E2;
-  --color-mat-blue: #ECE9E2;
-  --color-mat-sand: #ECE9E2;
-
   --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
 
   --radius-shot: 12px;
@@ -39,6 +30,22 @@
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* The mat: one colour per project, each project its own identity. It is the
+   ground of the project's DVD cover, spine and disc in Works, and of its study's
+   header. Read from script (lib/contrast.js), never through a utility class, so
+   the block is `static`: Tailwind drops theme variables no class uses, and
+   without this the covers fell back to paper. */
+@theme static {
+  --color-mat-generator: #ffd1fb;
+  --color-mat-ceva: #DFEBFF;
+  --color-mat-indes: #4D7C17;
+  --color-mat-emeis: #F1830B;
+  /* Taken from Bowards' own persona palette rather than its dark brand green:
+     the shot is a dark interface, and on a dark mat it lost its edge. */
+  --color-mat-bowards: #FFE5AD;
+}
+
 
 @layer base {
   * {
@@ -159,7 +166,7 @@
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.01;
-  font-size: clamp(2.2rem, 4.65vw, 4.2rem);
+  font-size: clamp(2.2rem, 3.5vw, 4.0rem);
 
   @media (width < 40rem) {
     line-height: 1.15;

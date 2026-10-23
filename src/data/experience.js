@@ -32,6 +32,10 @@
  *
  * refusal : what the two dead window buttons say when pointed at. They are there
  *           to be tried, not to work.
+ *
+ * next    : the button at the foot of the browser and of Notes, for whoever does
+ *           not read a 11px tab strip as something to click. One label per window,
+ *           and `restart` once the last entry is showing, since it loops.
  */
 
 const PLACEHOLDER_PERIOD = '20XX — 20XX'
@@ -46,6 +50,11 @@ const PLACEHOLDER_DESCRIPTION =
 export const experience = {
   title: ['My designer journey'],
   refusal: "Don't you want to know about my experience ?",
+  next: {
+    work: 'Next job',
+    school: 'Next school',
+    restart: 'Back to the first',
+  },
 
   tabs: [
     {
@@ -55,11 +64,11 @@ export const experience = {
       place: 'École Estienne',
       role: 'Licence Design Numérique - Interfaces',
       period: "2019 – 2022",
-      missions: PLACEHOLDER_MISSIONS,
+      missions: 'UX-UI Design, Motion Design, 3D Modeling, Coding...',
       url: 'https://www.ecole-estienne.paris/',
-      logo: null,
+      logo: '/favicons/logo-estienne.svg',
       favicon: null,
-      description: PLACEHOLDER_DESCRIPTION,
+      description: 'Learning how to create digital experiences with sense including UX design, motion design through creative projects. I loved the creative part !',
       quote: null,
     },
     {
@@ -69,7 +78,7 @@ export const experience = {
       place: 'LISAA Paris',
       role: 'Master Product Design',
       period: "2022 – 2024",
-      missions: PLACEHOLDER_MISSIONS,
+      missions: 'Product Design, Design system, NoCode',
       url: 'https://www.lisaa.com/fr/ecole/arts-appliques-graphisme-paris',
       /* The first real mark of the seven. It is a portrait wordmark, 230 by 327,
          which the square slot handles on its own through object-contain. */
@@ -85,11 +94,11 @@ export const experience = {
       place: 'Outsight Studio',
       role: 'UI Designer Freelance',
       period: "2023",
-      missions: PLACEHOLDER_MISSIONS,
+      missions: 'Freelance UI Design missions',
       url: 'https://www.outsight.studio/',
       logo: null,
       favicon: '/favicons/outsight.png',
-      description: PLACEHOLDER_DESCRIPTION,
+      description: 'I‘ve worked on few project for UI Design supply with this greate team beside my studies.',
       quote: null,
     },
     {
@@ -113,17 +122,14 @@ export const experience = {
       place: 'Ublo Immo',
       role: 'Consultant Product designer',
       period: "June 2023 – August 2023",
-      missions: PLACEHOLDER_MISSIONS,
+      missions: 'Product Design, Design system',
       url: 'https://www.ublo.immo/',
       logo: null,
       favicon: '/favicons/ublo.png',
       description: PLACEHOLDER_DESCRIPTION,
-      /* The only real quote on the site. Kept exactly as it was said, spelling
-         and all: it is not Arthur's to tidy. Still to be sourced, and the client
-         is not named yet. */
       quote: {
         text: "Chez Ublo.immo nous travaillons pour des utilisateurs dont les besoins nécessitent une analyse fine et précise de leur domaine d'expertise. Intégrer un talent de Wolfox en régie au sein de notre équipe design nous a apporté un nouveau regard. Ce talent Wolfox a su aborder nos problématiques dans toutes leurs nuances et proposer des résolutions simples et efficaces.",
-        client: 'Client name',
+        client: 'Éric Dugast, Head of Design',
       },
     },
     {
@@ -132,12 +138,13 @@ export const experience = {
       app: 'reminders',
       place: 'Agence Mantu',
       role: 'AI Product Designer',
-      period: PLACEHOLDER_PERIOD,
-      missions: PLACEHOLDER_MISSIONS,
+      period: "2024 – Today",
+      missions: 'Client products, Websites, AI training',
       url: 'https://agence.mantu.com/',
       logo: null,
       favicon: '/favicons/mantu.png',
-      description: PLACEHOLDER_DESCRIPTION,
+      description:
+        "Three hats, one desk. I design internal tools and showcase websites for our clients, and I'm the design team's AI Champion: I try the tools first, keep what works and get everyone else up to speed. I also train outside teams on design and AI, La Poste included.",
       quote: {
         text: 'Placeholder quote. Replace with what they actually said: the raw sentence beats a polished summary.',
         client: 'Client name',
@@ -147,14 +154,15 @@ export const experience = {
       id: 'ceva',
       kind: 'work',
       app: 'contacts',
-      place: 'CEVA Logistic',
-      role: 'Consultant Product designer',
-      period: PLACEHOLDER_PERIOD,
-      missions: PLACEHOLDER_MISSIONS,
+      place: 'CEVA Logistics',
+      role: 'Consultant Product Designer',
+      period: "November 2025 – Today",
+      missions: 'Product Design, Internal tool',
       url: 'https://www.cevalogistics.com/fr',
       logo: null,
       favicon: '/favicons/ceva.ico',
-      description: PLACEHOLDER_DESCRIPTION,
+      description:
+        "Still on it. I'm designing an internal tool with CEVA's Solution Experts, the team that builds the logistics answer behind each client deal. I sit with them, learn how they actually work, and turn that know-how into a product that saves them time instead of adding one more step.",
       quote: {
         text: 'Placeholder quote. Replace with what they actually said: the raw sentence beats a polished summary.',
         client: 'Alexandre',

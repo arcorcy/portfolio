@@ -1,7 +1,7 @@
 /**
- * Projects — scattered across the Work section as a loose constellation of
- * cards. Hovering one brings it forward and dims the rest; the copy appears
- * beside it. They float, drift with the scroll and can be dragged.
+ * Projects — four windows on the Work section's stage, overlapping the way things
+ * on a desk do. Pointing at one lifts it and pushes the other three back; the copy
+ * turns up beside it. They can be picked up and carried.
  *
  * title    : the one-sentence framing of what you did. Reads as a headline.
  * subtitle : one short qualifier (client, context, kind of work).
@@ -11,30 +11,32 @@
  * study    : the case study opened by clicking the card. Absent means the card
  *            is not clickable.
  *
- * Layout — the card sits on a coloured mat, and where it sits is part of the
- * design rather than something the code works out:
- * mat      : a key in Work.jsx's MAT map, one colour token per project.
- * crop     : a key in Work.jsx's CROP map, deciding which corner of the cover is
- *            the one guaranteed to survive. Optional, and 'top' when left out,
- *            which centres horizontally and cuts both sides evenly. 'left-top'
- *            pins the top left instead and puts the whole cut on the right,
- *            which is what an interface wants: its sidebar and its header are
- *            the part that says what the thing is, and a panel down the right
- *            edge is the part that can go.
- * zoom     : how far to crop into the cover, 1 or absent meaning not at all.
- *            object-cover alone barely crops here: a 16/9 shot in the card's
- *            1.666 box already shows 93.7% of its width, so `crop` only decides
- *            where that 6.3% comes off. A screenshot of a whole interface is
- *            unreadable at card size, and this is what lets one be cropped into
- *            until it reads. Anchored on the same corner as `crop`.
- * x / y    : centre of the card, as a percentage of the stage.
- * size     : its width, as a percentage of the stage width.
- * rot      : degrees. Uneven on purpose, dropped rather than aligned.
- * drift    : how far it travels vertically across the section's scroll, as a
- *            percentage of the card's own height. A percentage and not pixels
- *            on purpose: it keeps the travel proportional at every stage size,
- *            which is what makes the containment hold on a small laptop as
- *            well as a wide screen. The sign decides whether it leads or lags.
+ * Layout — the window sits on the stage, and where it sits is part of the design
+ * rather than something the code works out:
+ * label    : the short name the window's title bar carries. The long `title` is
+ *            the headline beside the window, not a window title.
+ * mat      : which colour the shot sits on inside its window, a key in Work.jsx's
+ *            MAT map. One per project, not shared: each project's ground is its
+ *            own, and the window's header stays paper regardless.
+ * crop     : which corner of the shot survives the crop, a key in Work.jsx's CROP
+ *            map. Optional, and 'top' is the default: the shot is fitted to the
+ *            mat's box by width, so what the crop decides is where the leftover
+ *            height comes off, and an interface keeps its header.
+ * x / y    : the window's top left corner, as a percentage of the stage. Its top
+ *            left and not its centre, unlike an experience window: those carry a
+ *            height in the data, and there is no half width to give back here
+ *            since every window is the same fixed width.
+ *
+ * No size and no chrome: every window is WINDOW_WIDTH wide with a macOS bar, and
+ * they are all the same height, so the arrangement is two numbers per project.
+ *
+ * What to know before moving one, because it is the one thing that bites: the
+ * width is in viewport units while these are percentages of the stage, and the
+ * stage caps on viewport *height*, so a window is a larger share of the stage the
+ * shorter the window gets. Measured, it goes from 49% x 60% at 1440x900 to
+ * 54% x 67% at 1280x720. The arrangement therefore has to hold at the second of
+ * those, not the first, which puts the ceiling at x 45 and y 32 rather than the
+ * 51 and 40 the wide case would allow.
  */
 
 /* The plugin's own interface, used twice: the card cover in Works and the banner
@@ -49,6 +51,9 @@ const variableGenerator = '/covers/variable-generator.png'
 const emeis = '/covers/emeis.png'
 const ceva = '/covers/ceva.png'
 const indesPilot = '/covers/indespilot.png'
+
+// The canvas shot from Bowards' own homepage, so the two never show different products.
+const bowards = '/covers/bowards.png'
 
 /* A study that exists so the card opens and the page can be judged before the
    writing does. Shared on purpose rather than written twice: two identical
@@ -123,12 +128,10 @@ export const projects = [
     subtitle: 'Internal tool',
     cover: variableGenerator,
     link: null,
-    mat: 'pink',
-    x: 25,
-    y: 31,
-    size: 40,
-    rot: -7,
-    drift: 6,
+    label: 'Variable Generator',
+    mat: 'generator',
+    x: 1,
+    y: 1,
   },
   {
     id: 'project-02',
@@ -137,12 +140,10 @@ export const projects = [
     subtitle: 'Client name',
     cover: emeis,
     link: null,
-    mat: 'orange',
-    x: 74,
-    y: 29,
-    size: 38,
-    rot: 4,
-    drift: -6,
+    label: 'emeis',
+    mat: 'emeis',
+    x: 47,
+    y: 0,
   },
   {
     id: 'project-03',
@@ -151,12 +152,10 @@ export const projects = [
     subtitle: 'Client name',
     cover: ceva,
     link: null,
-    mat: 'blue',
-    x: 27,
-    y: 70,
-    size: 39,
-    rot: 6,
-    drift: -7,
+    label: 'CEVA',
+    mat: 'ceva',
+    x: 3,
+    y: 31,
   },
   {
     id: 'indes-pilot',
@@ -164,19 +163,56 @@ export const projects = [
     title: 'Placeholder copy. The cover is the real one, the sentence is not yet.',
     subtitle: 'Client name',
     cover: indesPilot,
-    /* The only cover that is a full interface edge to edge, and the only one that
-       has to be cropped into to read: at card size the whole screen is a grey
-       texture. Pinned top left and taken in to about the left two thirds, so the
-       sidebar, the header and the first rows carry it while the waiting-spots
-       panel down the right edge takes the cut. */
-    crop: 'left-top',
-    zoom: 1.4,
     link: null,
-    mat: 'sand',
-    x: 73,
-    y: 69.5,
-    size: 41,
-    rot: -5,
-    drift: 6,
+    label: 'Indés Pilot',
+    mat: 'indes',
+    /* Wider than the mat's 16/10, so object-cover crops its width, and the
+       default crop centres that cut, which was landing half of it on the time
+       slots down the left edge, the one column the shot cannot lose. left-top
+       moves the whole cut to the right, into a table column rather than the
+       sidebar. */
+    crop: 'left-top',
+    x: 45,
+    y: 32,
+  },
+  {
+    id: 'bowards',
+    /* A first draft in English, written from the project's specs: Arthur's to
+       rewrite. The figures are slots until the screenshots are cut to 16:10. */
+    study: {
+      cover: bowards,
+      sections: [
+        {
+          title: 'It started as a test bench and refused to stay one.',
+          paragraphs: [
+            'Bowards began as the product I needed to put my design system under real pressure: routes, shared state, screens that talk to each other, everything a Storybook story never has to deal with. A test bench needs a subject, so I picked a problem I know by heart. A sitemap gets drawn once, at the start of a project, and nobody checks it against an actual user ever again.',
+          ],
+        },
+        {
+          title: 'Let agents walk the map before users do.',
+          paragraphs: [
+            'So the sitemap became a canvas, and the canvas got visitors. You describe a persona, give it a goal, and an AI agent walks your map through the Bowards MCP server, page by page, the way that person would.',
+            'One walk proves nothing, so a run sends ten agents after the same goal. The report shows where they agree, where they hesitate and where they get lost.',
+          ],
+          figure: { cover: null, caption: 'A persona walking the map' },
+        },
+        {
+          title: 'A designer in the driving seat, Claude Code at the keyboard.',
+          paragraphs: [
+            'Twenty seven specs, written before a line of code each time, and Claude Code doing the typing on top of my own design system. Nothing ships until I have handled it on screen: a feature once passed every test and still earned nine fixes the day I actually used it.',
+            'Bowards is live in beta on bowards.app, with its own showcase site, an MCP server any agent can plug into and an admin back office to keep an eye on the costs.',
+          ],
+          figure: { cover: null, caption: 'The MCP server, plugged into Claude' },
+        },
+      ],
+    },
+    title: 'How I shipped a product where AI agents walk your sitemap',
+    subtitle: 'Personal product',
+    cover: bowards,
+    link: 'https://bowards.app',
+    label: 'Bowards',
+    mat: 'bowards',
+    x: 24,
+    y: 16,
   },
 ]

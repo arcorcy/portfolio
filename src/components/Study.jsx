@@ -2,15 +2,12 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { EASE } from '../lib/motion.jsx'
+import { onMat } from '../lib/contrast.js'
 import Placeholder from './Placeholder.jsx'
 
-/* The surface grows from the card to the whole screen, then the copy arrives.
-   A measured flip rather than a shared layout id: the card sits under four
-   nested transforms, one of them a rotation, and layout animations read boxes
-   that ancestor transforms have already moved. Measuring the card's rect on
-   screen sidesteps all of it, since the rect already accounts for them. */
-const GROW = { duration: 0.55, ease: EASE }
-const COPY_IN = { duration: 0.5, delay: 0.4, ease: EASE }
+/* The surface fades in over the case's inside, then the copy arrives. */
+const FADE_IN = { duration: 0.35, ease: EASE }
+const COPY_IN = { duration: 0.5, delay: 0.2, ease: EASE }
 
 /* Closing does not retrace the way in: a circular mask closes on the middle of
    the screen until nothing is left. The surface itself never moves.
@@ -28,18 +25,6 @@ const SHUT = 0.32
 const IRIS_OPEN = '150%'
 const IRIS_SHUT = '0%'
 
-/* Only the flat colour is on screen while the surface grows, so the uneven
-   scale it takes on the way has nothing to distort. */
-function flip(rect) {
-  if (!rect) return { x: 0, y: 0, scaleX: 1, scaleY: 1 }
-  return {
-    x: rect.left,
-    y: rect.top,
-    scaleX: rect.width / window.innerWidth,
-    scaleY: rect.height / window.innerHeight,
-  }
-}
-
 function Figure({ cover, caption, seed }) {
   return (
     <figure className="mt-10">
@@ -55,7 +40,21 @@ function Figure({ cover, caption, seed }) {
   )
 }
 
-export default function Study({ project, mat, from, onClose }) {
+/* The surface is the project's own mat, the colour of the inside of the DVD case
+   the camera has just flown into, so the case reads as opening onto the study
+   rather than being replaced by it.
+   An inline var rather than a class: the mat key comes from the data, and a class
+   built from it would be a template string Tailwind never sees. */
+function surface(mat) {
+  return mat ? `var(--color-mat-${mat})` : 'var(--color-paper)'
+}
+
+// Ink or white on the mat, whichever contrasts more (see lib/contrast.js).
+function textOn(mat) {
+  return `var(--color-${onMat(mat)})`
+}
+
+export default function Study({ project, onClose }) {
   const closer = useRef(null)
   const titleId = `study-${project.id}`
 
@@ -87,13 +86,20 @@ export default function Study({ project, mat, from, onClose }) {
             /* overscroll-contain, or reaching the top of this panel hands the scroll
          on to the document, which rubber-bands and drags every fixed layer with
          it: the page shows through above the study. */
-      className={`fixed inset-0 z-[100] origin-top-left overflow-y-auto overscroll-contain ${mat}`}
-      style={{ clipPath: `circle(var(--iris) at 50% 50%)` }}
-      initial={{ ...flip(from), borderRadius: 24, '--iris': IRIS_OPEN }}
-      animate={{ x: 0, y: 0, scaleX: 1, scaleY: 1, borderRadius: 0, '--iris': IRIS_OPEN }}
-      // No fade: it goes because the mask reaches zero, not because it dims.
+      className="fixed inset-0 z-[100] origin-top-left overflow-y-auto overscroll-contain"
+      style={{
+        clipPath: `circle(var(--iris) at 50% 50%)`,
+        backgroundColor: surface(project.mat),
+        color: textOn(project.mat),
+      }}
+      /* A fade in, not a grow: by the time it mounts, the DVD case has already
+         flown into the camera and its inside fills the screen in the mat's colour,
+         which is this surface's colour too, so the fade only brings the copy. */
+      initial={{ opacity: 0, '--iris': IRIS_OPEN }}
+      animate={{ opacity: 1, '--iris': IRIS_OPEN }}
+      // Leaving, it goes because the mask reaches zero, not because it dims.
       exit={{ '--iris': IRIS_SHUT, transition: { duration: SHUT, ease: EASE } }}
-      transition={GROW}
+      transition={FADE_IN}
     >
       <motion.div
         initial={{ opacity: 0 }}
@@ -119,7 +125,9 @@ export default function Study({ project, mat, from, onClose }) {
             first sentence. Decorative to the letter, hence aria-hidden. */}
         <div className="gutter grid min-h-[46svh] items-end gap-10 overflow-hidden pb-14 pt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
           <div>
-            <p className="text-sm font-bold text-ink/60">{project.subtitle}</p>
+            {/* An opacity rather than text-ink/60, so it follows whichever of ink
+                or white the mat picked. */}
+            <p className="text-sm font-bold opacity-60">{project.subtitle}</p>
             <h1 id={titleId} className="display-md mt-4 max-w-[46rem]">
               {project.title}
             </h1>
@@ -143,7 +151,7 @@ export default function Study({ project, mat, from, onClose }) {
 
         {/* The body lifts off the coloured surface, the way the cover sat on the
             card's mat. */}
-        <div className="min-h-svh rounded-t-[2rem] bg-paper pb-32 pt-16">
+        <div className="min-h-svh rounded-t-[2rem] bg-paper pb-32 pt-16 text-ink">
           <div className="gutter">
             <div className="mx-auto max-w-[42rem]">
               {project.study.sections.map((section, i) => (

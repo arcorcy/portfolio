@@ -8,7 +8,7 @@ import {
   useScroll,
   useTransform,
 } from 'framer-motion'
-import { Headline, ScrollWords, EASE } from '../lib/motion.jsx'
+import { Headline, ScrollWords, EASE, PINNED_EXIT } from '../lib/motion.jsx'
 import {
   BASE,
   arcPath,
@@ -33,13 +33,6 @@ const { steps } = process
 const TRACKS = resolveTracks(steps)
 
 // Scroll length of one step, in percent of the viewport height.
-/* The pinned title rests inside the panel rather than travelling through the
-   viewport, so its exit needs a window that opens above where it rests. Measured
-   at 900px it sits 124px down, which the default window (opening at a fifth of
-   the screen, 180px) would have caught: it would have spent the whole sequence at
-   77% opacity. This one opens at 5%, so nothing happens until the track lets the
-   panel go and the title really does ride off the top. */
-const PINNED_EXIT = ['start 0.05', 'end 0']
 
 const PER_STEP = 90
 

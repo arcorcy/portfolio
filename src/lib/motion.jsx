@@ -72,6 +72,11 @@ const WORD_CLIP = 'inset(-0.4em -0.25em -0.22em -0.25em)'
    opens at 180.
    ------------------------------------------------------------------ */
 const EXIT_OFFSET = ['start 0.2', 'end 0']
+
+/* The window a pinned title gets instead: it opens at 5% of the screen, above
+   anywhere a pinned title rests, so nothing moves until the track lets its panel
+   go and the title really does ride off the top. Shared by Process and Works. */
+export const PINNED_EXIT = ['start 0.05', 'end 0']
 const OUT_LIFT = -44
 
 /* The box that is measured is not the box that moves: the wrapper keeps its

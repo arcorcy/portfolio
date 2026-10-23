@@ -1,136 +1,48 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   AnimatePresence,
   animate,
   motion,
-  useMotionValue,
+  useInView,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
-  useSpring,
   useTransform,
-  useVelocity,
 } from 'framer-motion'
-import { Headline, EASE } from '../lib/motion.jsx'
+import { Headline, EASE, PINNED_EXIT } from '../lib/motion.jsx'
 import { work } from '../data/content.js'
 import { projects } from '../data/projects.js'
-import Arrow from './Arrow.jsx'
-import Placeholder from './Placeholder.jsx'
 import Study from './Study.jsx'
 
-/* One colour token per project. Written out as whole class names so Tailwind
-   sees them: a template string would generate nothing. */
-const MAT = {
-  pink: 'bg-mat-pink',
-  orange: 'bg-mat-orange',
-  blue: 'bg-mat-blue',
-  sand: 'bg-mat-sand',
-}
+/* The ring is WebGL, Three.js and all: loaded on its own so the hero does not
+   wait for it. */
+const Ring = lazy(() => import('./Ring.jsx'))
 
-/* Which corner of a cover survives the crop, keyed off the project. Whole class
-   names again, for the same reason as the mats.
+/* Scroll length of one project, in svh. The track is one screen for the panel
+   plus this much per step between two projects, and each step turns the ring
+   by one case. */
+const PER_PROJECT = 80
 
-   The default centres and takes the same sliver off both sides, which is right
-   for a cover with its subject in the middle. An interface has its subject in the
-   corner: the sidebar and the header are what say what the thing is, so pinning
-   the top left puts the whole cut on the right, where a side panel can go. */
-const CROP = {
-  top: 'object-top',
-  'left-top': 'object-left-top',
-}
+/* The scroll is segmented: one wheel gesture is one project. STEP is how long
+   the page takes to travel to the next case. QUIET is the silence a gesture
+   has to end on before the next one counts: a trackpad keeps firing its
+   inertia for most of a second after the fingers lift, and without it one
+   swipe would run through every project. NUDGE is the smallest delta that
+   counts as a gesture, under which a trackpad's resting jitter would step.
 
-/* How far the cover runs past the card's bottom right corner. The mat rounds that
-   corner and clips to it, so a cover stopping exactly on the edge leaves the
-   round corner cutting across a square one and a sliver of mat shows through.
-   Sending it a little further means the clip falls entirely inside the image and
-   the corner reads as the card's own. Bigger than the 24px radius, so it clears
-   the whole arc rather than most of it. */
-const BLEED = '2rem'
-
-// How far a card is pushed back while another one holds the attention.
-const DIMMED = 0.1
-
-/* At least 24px between a card and its copy, asked for explicitly, and the
-   measurement that counts is against the card's leaning edge rather than its
-   bounding box. The copy is up to 244px tall and centred on the card, so a
-   7 degree tilt pulls the edge some 15px closer at one end of that block than
-   at the middle: the offset has to pay for the tilt as well as the 24px. */
-const COPY_GAP = 44
-const COPY_WIDTH = 82
-
-/* The copy is anchored past the card's right edge and slides to the left side
-   when it needs to. The whole distance is the card, the copy and both gaps, and
-   it can be written without measuring anything: the copy is COPY_WIDTH percent
-   of the card, so the card is that ratio's inverse in units of the copy. Only
-   the two gaps are pixels, which is why the travel ends up as a calc. */
-const FLIP_SPAN = 100 + (100 / COPY_WIDTH) * 100
-
-function flipX(t) {
-  return `calc(${(-FLIP_SPAN * t).toFixed(3)}% - ${(2 * COPY_GAP * t).toFixed(1)}px)`
-}
-
-/* The physics. Nothing here is a real simulation: a spring on the position
-   gives the lag and the small overshoot that read as weight, and mapping how
-   fast a card is travelling onto a rotation gives the tilt of something being
-   carried or thrown. Both are clamped, because a fast flick should lean, not
-   spin. */
-const GLIDE = { stiffness: 55, damping: 16, mass: 0.9 }
-const LEAN = { stiffness: 120, damping: 13, mass: 0.7 }
-const THROW = { power: 0.3, timeConstant: 340, bounceStiffness: 170, bounceDamping: 22 }
-const SETTLE = { stiffness: 70, damping: 17, mass: 1.1 }
-const FLIP = { stiffness: 130, damping: 20, mass: 0.9 }
-
-// Degrees of lean per unit of speed: px/s while dragging, percent/s on scroll.
-const DRAG_LEAN = 0.0055
-const DRAG_LEAN_MAX = 9
-const SCROLL_LEAN = 0.08
-const SCROLL_LEAN_MAX = 4
-
-/* How much of a throw a card keeps once it stops. The resting angle is not a
-   constant: move a card and it comes to rest a little further left or right
-   than it started, the way a real object would. Clamped so a card that gets
-   pushed around all afternoon still reads as the same card. */
-const KEPT_LEAN = 0.0022
-const KEPT_LEAN_MAX = 4.5
-
-function clamp(v, limit) {
-  return Math.max(-limit, Math.min(limit, v))
-}
-
-/* ------------------------------------------------------------------
-   Is the constellation the layout on screen?
-
-   Below lg the field is display:none and the slider takes over. A box of no size
-   is the whole cause of the pile: Framer resolves dragConstraints against the
-   field, and on a resize it puts anything outside them back inside, so four
-   cards clamped into nothing all arrive at the same point and the constellation
-   comes back as a stack in the middle. Reproduced by measuring: loaded straight
-   at 1440 every card sits at transform none, and after one trip under 1024 they
-   carry translations of 200px and more towards the centre.
-
-   So the constraints are handed over only while the field is really there, and
-   the cards ease back to their own positions on the way in.
-   ------------------------------------------------------------------ */
-const WIDE = '(min-width: 64rem)'
-
-/* Long and soft: this is a layout finding itself again, not a card being thrown,
-   and the point of easing it at all is that the arrangement should be seen to
-   come back rather than appear to have always been right. */
-const REGATHER = { duration: 1.1, ease: EASE }
-
-function useWide() {
-  const [wide, setWide] = useState(true)
-
-  useEffect(() => {
-    const query = window.matchMedia(WIDE)
-    const read = () => setWide(query.matches)
-
-    read()
-    query.addEventListener('change', read)
-    return () => query.removeEventListener('change', read)
-  }, [])
-
-  return wide
-}
+   Silence alone is not enough to find where a gesture starts: someone swiping
+   again before the last swipe's inertia has died out never leaves a gap, and
+   every swipe after the first was swallowed. Inertia only ever decays, so a
+   delta that jumps above the one before it (RISE, from at least RISE_FROM) or
+   flips direction is a new swipe too. RISE_GAP is the least time between two
+   swipes found that way, so a mouse wheel whose deltas accelerate as it spins
+   does not read as a burst of gestures. */
+const STEP = 0.9
+const QUIET = 180
+const NUDGE = 4
+const RISE = 1.3
+const RISE_FROM = 8
+const RISE_GAP = 250
 
 /* ------------------------------------------------------------------
    The title, which starts life as a teaser at the foot of the hero: it
@@ -200,9 +112,21 @@ function Teaser({ reduce }) {
       const el = home.current
       if (!el) return
       const vh = window.innerHeight
-      // The centre, not the top: a scale about the centre leaves it put, so
-      // the aim holds whatever size the teaser is drawn at.
-      const centre = el.getBoundingClientRect().top + el.offsetHeight / 2 + window.scrollY
+      /* Where the title rests on the page, worked out as if its panel were not
+         pinned: the section's own top, which never sticks, plus how far down the
+         panel the title sits, which sticking does not change. Read straight off
+         the title's box, a load or a resize landing mid-pin measured the stuck
+         position and threw the teaser hundreds of pixels off.
+
+         The centre, not the top: a scale about the centre leaves it put, so the
+         aim holds whatever size the teaser is drawn at. */
+      const section = el.closest('section')
+      const panel = section.firstElementChild
+      const centre =
+        section.getBoundingClientRect().top +
+        window.scrollY +
+        (el.getBoundingClientRect().top - panel.getBoundingClientRect().top) +
+        el.offsetHeight / 2
       const over = Math.max(1, centre - LAND_AT * vh)
       setGeometry({ from: TEASER_AT * vh - centre, over })
       // Settled here too, not only on scroll: a resize moves the threshold, and
@@ -271,7 +195,15 @@ function Teaser({ reduce }) {
           {/* The exit measures the title's own travel, so nothing has to be
               passed in and it cannot end up hung on the section's progress, where
               the title had left the screen long before the range began. */}
-          <Headline lines={work.title} className="display-lg text-center" shown={shown} exit />
+          <Headline
+            lines={work.title}
+            className="display-lg text-center"
+            shown={shown}
+            exit
+            /* It rests pinned in the panel on a wide screen, so it needs the
+               window that opens above where it rests. */
+            exitOffset={PINNED_EXIT}
+          />
           {!reduce && <Nudge opacity={nudge} />}
         </a>
       </motion.div>
@@ -280,391 +212,206 @@ function Teaser({ reduce }) {
 }
 
 /* ------------------------------------------------------------------
-   The card itself: a cover on a coloured mat, cropped flush at the
-   bottom so it reads as a window rather than a framed picture.
+   Stepping, one project per wheel gesture, while the panel is pinned.
+
+   The scroll owns which case is in front, and nothing else writes it, which is
+   why every way of moving (a wheel gesture, a click on a case at the side, a
+   keyboard focus) scrolls the page to that case's spot rather than setting
+   state the next frame would undo.
    ------------------------------------------------------------------ */
-function Cover({ project, index, lifted }) {
+function useSteps(track, progress, last) {
+  /* Animated by hand and not with behavior: 'smooth', to know exactly when it
+     lands and to ease it with the site's one curve. Each frame's scroll is
+     spelled out as instant: html carries scroll-behavior: smooth, under which a
+     bare scrollTo starts a native glide of its own, restarted every frame. */
+  const travel = useRef(null)
+  // The case the page is travelling to, which is where a swipe landing mid-travel counts from.
+  const dest = useRef(0)
+  /* The wheel gesture under way: when its last event came, how big and which
+     way it went, when it began, and whether it was handed back to the page. */
+  const gesture = useRef({ at: 0, size: 0, sign: 0, start: 0, free: false })
+
+  function go(i) {
+    const box = track.current
+    if (!box || i < 0 || i > last) return
+    dest.current = i
+    const top = box.getBoundingClientRect().top + window.scrollY
+    const run = box.offsetHeight - window.innerHeight
+    travel.current?.stop()
+    travel.current = animate(window.scrollY, top + (i / Math.max(1, last)) * run, {
+      duration: STEP,
+      ease: EASE,
+      onUpdate: (v) => window.scrollTo({ top: v, behavior: 'instant' }),
+      onComplete: () => {
+        travel.current = null
+      },
+    })
+  }
+
+  /* One gesture, one project. Only while the panel is pinned, and only when
+     there is a case to go to in that direction: past the first or the last,
+     the wheel is handed back to the page and the section scrolls away as any
+     other would, for the rest of that gesture. Everything else a gesture sends
+     after its first event is swallowed, which is what makes it stop on the
+     case instead of sliding through. */
+  useEffect(() => {
+    function onWheel(e) {
+      const box = track.current
+      if (!box) return
+      /* A study is portalled to the body, so its wheel still bubbles up to
+         window, and the panel behind it is still pinned: without this the
+         gesture was swallowed here and the study could not scroll at all. */
+      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
+
+      const now = performance.now()
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+      const size = Math.abs(delta)
+      const sign = Math.sign(delta)
+      const g = gesture.current
+      const fresh =
+        now - g.at >= QUIET ||
+        (now - g.start >= RISE_GAP &&
+          ((sign !== 0 && sign !== g.sign) || (size >= RISE_FROM && size > g.size * RISE)))
+      g.at = now
+      g.size = size
+      if (sign) g.sign = sign
+      if (fresh) g.start = now
+
+      const rect = box.getBoundingClientRect()
+      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) {
+        // A gesture that carries the page into the pin stops there.
+        g.free = false
+        return
+      }
+
+      if (!fresh || size < NUDGE) {
+        if (!g.free) e.preventDefault()
+        return
+      }
+
+      let to
+      if (travel.current) {
+        to = dest.current + sign
+      } else {
+        const f = progress.get() * last
+        to = sign > 0 ? Math.floor(f + 0.05) + 1 : Math.ceil(f - 0.05) - 1
+      }
+      if (to < 0 || to > last) {
+        g.free = !travel.current
+        if (!g.free) e.preventDefault()
+        return
+      }
+
+      g.free = false
+      e.preventDefault()
+      go(to)
+    }
+
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      travel.current?.stop()
+    }
+  }, [])
+
+  return go
+}
+
+/* ------------------------------------------------------------------
+   Turning the ring by hand: a horizontal drag anywhere on the stage.
+
+   The scroll still owns which case is in front, so a drag scrolls the page,
+   DRAG_PER_CASE of the screen's width per case, and the ring follows it the way
+   it follows the wheel. Letting go lands on a case: the one the drag was
+   heading for once it has gone LAND_AFTER of the way there, else back.
+
+   A drag is only a drag past DRAG_FROM pixels. Under that it is a click and is
+   left alone, which is why the pointer is captured only then: captured from the
+   first press, the canvas below would never hear the click that opens a case.
+   ------------------------------------------------------------------ */
+const DRAG_PER_CASE = 0.3
+const DRAG_FROM = 6
+const LAND_AFTER = 0.2
+
+function useDrag(track, progress, last, go, off) {
+  const drag = useRef(null)
+  // Whether the gesture that just ended was a drag, read by the click after it.
+  const dragged = useRef(false)
+
+  function run() {
+    const box = track.current
+    return box ? box.offsetHeight - window.innerHeight : 0
+  }
+
+  function onPointerDown(e) {
+    if (off || (e.pointerType === 'mouse' && e.button !== 0)) return
+    dragged.current = false
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: window.scrollY, on: false }
+  }
+
+  function onPointerMove(e) {
+    const d = drag.current
+    if (!d || d.id !== e.pointerId) return
+    const dx = e.clientX - d.x
+    if (!d.on) {
+      // A vertical move on a phone is the page's scroll, not a drag.
+      if (Math.abs(dx) < DRAG_FROM || Math.abs(dx) < Math.abs(e.clientY - d.y)) return
+      d.on = true
+      dragged.current = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    const box = track.current
+    const top = box.getBoundingClientRect().top + window.scrollY
+    const perCase = run() / Math.max(1, last)
+    const y = d.from - (dx / (window.innerWidth * DRAG_PER_CASE)) * perCase
+    window.scrollTo({ top: Math.min(top + run(), Math.max(top, y)), behavior: 'instant' })
+  }
+
+  function onPointerUp(e) {
+    const d = drag.current
+    drag.current = null
+    if (!d?.on) return
+    const f = progress.get() * last
+    const dx = e.clientX - d.x
+    go(dx < 0 ? Math.ceil(f - LAND_AFTER) : Math.floor(f + LAND_AFTER))
+  }
+
+  return {
+    dragged,
+    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+  }
+}
+
+/* ------------------------------------------------------------------
+   The title of the case in front, at the foot of the screen like a film's
+   subtitle: white on a dark band per line, so it reads over whatever the ring
+   puts behind it. The kind of project goes first in brackets, the way subtitles
+   for the hard of hearing set a sound apart from speech.
+   ------------------------------------------------------------------ */
+function Subtitle({ project, hidden }) {
   return (
     <div
-      /* The mat is a margin on two sides only, the top and the left, so the
-         cover is anchored into the card's bottom right corner and runs off both
-         of those edges. It used to be padded on the right as well, which framed
-         the shot on three sides and read as a picture parked in a frame rather
-         than as a window onto something larger.
-
-         Two shadows, and the gap between them is the point: just enough at rest
-         to tell which card is over which, then a real lift under the one being
-         pointed at. Both alpha and blur roughly double on hover, so the change
-         reads as the card coming up rather than as the shadow getting darker. */
-      className={`h-full w-full overflow-hidden rounded-shot pl-[6%] pt-[6%] transition-shadow duration-500 ${
-        MAT[project.mat]
-      } ${
-        lifted
-          ? 'shadow-[0_20px_48px_-24px_rgba(1,1,2,0.22)]'
-          : 'shadow-[0_8px_22px_-14px_rgba(1,1,2,0.1)]'
-      }`}
+      aria-live="polite"
+      className="pointer-events-none absolute inset-x-0 bottom-[7svh] z-10 flex justify-center px-[var(--gutter)]"
     >
-      {/* Rounded on the one corner that is still inside the card. The other three
-          sit on or past an edge, and the bottom right is pushed a little past it
-          by BLEED so the mat's own radius can never show through as a sliver of
-          colour where a square corner meets a round one. */}
-      <div
-        className="overflow-hidden rounded-tl-[10px] bg-white"
-        style={{ width: `calc(100% + ${BLEED})`, height: `calc(100% + ${BLEED})` }}
-      >
-        {project.cover ? (
-          <img
-            src={project.cover}
-            alt={project.title}
-            className={`h-full w-full object-cover ${CROP[project.crop] ?? CROP.top}`}
-            /* The zoom crops into the cover, which object-cover on its own cannot:
-               a 16/9 shot in this 1.666 box already shows 93.7% of its width, so
-               choosing where that 6.3% comes off is the only say the crop has. An
-               interface needs more than that, hence a scale, anchored on the same
-               corner the crop is so the two cannot disagree.
-
-               An inline style rather than a Tailwind class, as everywhere else a
-               transform is computed here, and on the image itself, which is the
-               one layer of the card that owns no transform yet. */
-            style={
-              project.zoom
-                ? {
-                    transform: `scale(${project.zoom})`,
-                    transformOrigin: project.crop === 'left-top' ? 'left top' : 'center top',
-                  }
-                : undefined
-            }
-            draggable={false}
-          />
-        ) : (
-          <Placeholder seed={index} className="h-full w-full" />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Copy({ project, className = '' }) {
-  return (
-    <div className={className}>
-      <h3 className="display-sm">{project.title}</h3>
-      <p className="mt-3 text-base text-mute">{project.subtitle}</p>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------
-   One scattered card. Four nested layers, each the single owner of its
-   transform: the drag, the scroll drift, the idle float, then the hover
-   state. Sharing a layer is what makes these fight each other.
-
-   The copy is a child of the drag layer and sits just beside the card, so
-   it travels with it and the link between the two is never in doubt. It
-   stays outside the drift, float and hover layers: text that bobs and
-   scales is text nobody reads.
-   ------------------------------------------------------------------ */
-function Card({
-  project,
-  index,
-  field,
-  progress,
-  active,
-  dim,
-  onEnter,
-  onLeave,
-  onOpen,
-  reduce,
-  wide,
-  z,
-  onFront,
-}) {
-  const ref = useRef(null)
-  /* The innermost layer is the one to measure: the drag layer's box is the
-     card's untransformed footprint, while the rotation and the drift live on
-     children, so only this rect is what the eye actually sees. */
-  const visual = useRef(null)
-  // A drag ends in a click too. Framer only fires onDragStart past its
-  // threshold, so this stays false for a plain press.
-  const dragged = useRef(false)
-  const geometry = useRef(null)
-  const settled = useRef(project.x <= 50 ? 'right' : 'left')
-  /* A card being dragged has to sit above every other one. Hover alone was not
-     enough: move fast and the pointer leaves the card, which drops it back into
-     the pile mid-throw. */
-  const [held, setHeld] = useState(false)
-
-  /* The drag writes into these rather than into values Framer keeps to itself,
-     which is what lets the lean below read how fast the card is moving. */
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
-
-  /* Coming back to the constellation, a card goes home rather than staying where
-     a stale clamp left it, and it is eased there because zero is its arrangement:
-     the percentage left/top are the design, and an offset of nothing is what puts
-     the card on them. Nothing runs on the way out, and nothing runs while the
-     width merely changes inside the breakpoint, so a card someone has carried
-     somewhere stays carried. */
-  useEffect(() => {
-    if (!wide) return undefined
-    const back = [animate(dragX, 0, REGATHER), animate(dragY, 0, REGATHER)]
-    return () => back.forEach((run) => run.stop())
-  }, [wide, dragX, dragY])
-
-  /* Percentages, not pixels: a percentage translation resolves against the
-     card's own height, so the drift and the float both stay in proportion at
-     any stage size. That is what keeps a card inside the section on a small
-     laptop, where a fixed pixel travel would be half again as large.
-
-     Kept numeric all the way through the spring, because velocity cannot be
-     read off a value that is already a string, and only turned into a
-     percentage at the last step. */
-  const driftTo = useTransform(progress, [0, 1], [project.drift, -project.drift])
-  const drifting = useSpring(driftTo, GLIDE)
-  const drift = useTransform(drifting, (v) => `${v}%`)
-
-  const carried = useSpring(
-    useTransform(useVelocity(dragX), (v) => clamp(v * DRAG_LEAN, DRAG_LEAN_MAX)),
-    LEAN,
-  )
-  const scrolled = useTransform(useVelocity(drifting), (v) =>
-    clamp(v * SCROLL_LEAN, SCROLL_LEAN_MAX),
-  )
-  /* What the card keeps of the last throw, on top of its starting angle. The
-     target is tracked separately because a spring reports where it currently
-     is, not where it is heading, and clamping against a value still in flight
-     would let a card thrown again mid-settle drift past the limit. */
-  const kept = useSpring(0, SETTLE)
-  const keptTo = useRef(0)
-  const lean = useTransform([carried, scrolled, kept], ([a, b, c]) => a + b + c)
-
-  /* The side the copy sits on is a spring between two ends rather than a piece
-     of state, so the swap slides instead of jumping and no render happens while
-     a card is being dragged across the middle. */
-  const flip = useSpring(settled.current === 'right' ? 0 : 1, FLIP)
-  const copyX = useTransform(flip, flipX)
-  // A dip through the middle of the crossing, where the copy passes the card.
-  const crossing = useTransform(flip, [0, 0.5, 1], [1, 0.45, 1])
-
-  /* Which side the copy sits on is decided against the middle of the field, and
-     rechecked while the card is dragged: carry a left card over to the right and
-     its copy moves round rather than running off the edge. Measured once per
-     drag, not once per frame. */
-  function onDragStart() {
-    setHeld(true)
-    onFront()
-    dragged.current = true
-    if (!ref.current || !field.current) return
-    const card = ref.current.getBoundingClientRect()
-    const box = field.current.getBoundingClientRect()
-    geometry.current = { centre: card.left + card.width / 2, middle: box.left + box.width / 2 }
-  }
-
-  function pick(next) {
-    if (next === settled.current) return
-    settled.current = next
-    flip.set(next === 'right' ? 0 : 1)
-  }
-
-  function onDrag(_, info) {
-    if (!geometry.current) return
-    pick(info.offset.x + geometry.current.centre <= geometry.current.middle ? 'right' : 'left')
-  }
-
-  function onDragEnd(_, info) {
-    keptTo.current = clamp(keptTo.current + info.velocity.x * KEPT_LEAN, KEPT_LEAN_MAX)
-    kept.set(keptTo.current)
-  }
-
-  /* The card keeps gliding after it is released, and onDrag has stopped firing
-     by then, so a card thrown across the middle would keep the copy on its old
-     side. Measured again once the glide has settled. */
-  function onDragTransitionEnd() {
-    setHeld(false)
-    if (!ref.current || !field.current) return
-    const card = ref.current.getBoundingClientRect()
-    const box = field.current.getBoundingClientRect()
-    pick(card.left + card.width / 2 <= box.left + box.width / 2 ? 'right' : 'left')
-  }
-
-  return (
-    <motion.div
-      ref={ref}
-      className="absolute cursor-grab active:cursor-grabbing"
-      style={{
-        left: `${project.x}%`,
-        top: `${project.y}%`,
-        width: `${project.size}%`,
-        /* The data places a card by its centre, so it gives half of itself
-           back. Margin percentages both resolve against the containing
-           block's width, which is the stage: half the width is size/2, and
-           half the height is size/2 divided by the 17/10 ratio. */
-        marginLeft: `${-project.size / 2}%`,
-        marginTop: `${-project.size / 3.4}%`,
-        /* Three bands, wide apart so one can never bleed into the next: a card
-           being carried right now outranks one merely pointed at, which
-           outranks the resting order. z is that resting order, and it is the
-           one that persists once the card is let go: whichever card was last
-           dragged, of any of them, sits above the rest until another is. */
-        zIndex: held ? 1000 : active ? 500 : z,
-        x: dragX,
-        y: dragY,
-      }}
-      /* dragConstraints on the field is the guarantee, momentum included: throw a
-         card and it carries, then settles back inside rather than being lost off
-         screen. The field is not the card's containing block, which is the stage,
-         and does not need to be: Framer measures the page box of whatever ref it
-         is given and compares it with the card's own. */
-      drag={!reduce}
-      /* Only while the field has a size. Handed a hidden one, Framer clamps every
-         card into a box of nothing and the constellation returns as a pile. */
-      dragConstraints={wide ? field : false}
-      dragElastic={0.16}
-      dragMomentum={!reduce}
-      dragTransition={THROW}
-      onDragStart={onDragStart}
-      onDrag={onDrag}
-      onDragEnd={onDragEnd}
-      onDragTransitionEnd={onDragTransitionEnd}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
-      onClick={() => {
-        if (dragged.current) {
-          dragged.current = false
-          return
-        }
-        if (project.study && visual.current) onOpen(project, visual.current.getBoundingClientRect())
-      }}
-      data-cursor={project.study ? 'link' : 'hover'}
-    >
-      {/* Position and lean share this layer: they are different properties, so
-          neither overwrites the other, and both belong to the same idea of the
-          card having weight. */}
-      <motion.div style={reduce ? undefined : { y: drift, rotate: lean }}>
-        <motion.div
-          animate={
-            reduce
-              ? undefined
-              : { y: ['0%', '-4%', '0%'], rotate: [0, project.rot > 0 ? 1.2 : -1.2, 0] }
-          }
-          transition={{ duration: 9 + index * 1.7, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <motion.div
-            ref={visual}
-            className="aspect-[17/10]"
-            initial={false}
-            animate={{
-              rotate: project.rot,
-              scale: active ? 1.04 : 1,
-              opacity: dim ? DIMMED : 1,
-            }}
-            transition={{ duration: 0.55, ease: EASE }}
+      <AnimatePresence mode="wait">
+        {!hidden && (
+          <motion.p
+            key={project.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="max-w-[44rem] text-center text-[clamp(1.05rem,1.7vw,1.5rem)] font-semibold leading-[1.75] text-white"
           >
-            <Cover project={project} index={index} lifted={active} />
-          </motion.div>
-        </motion.div>
-      </motion.div>
-
-      {/* One anchor, just past the card's right edge, and a single translation
-          that carries the copy round to the left when the card crosses the
-          middle. Two competing anchors could not be animated between. */}
-      <motion.div
-        className="pointer-events-none absolute"
-        style={{
-          left: '100%',
-          top: '50%',
-          marginLeft: COPY_GAP,
-          width: `${COPY_WIDTH}%`,
-          x: copyX,
-          y: '-50%',
-          opacity: crossing,
-        }}
-      >
-        <motion.div
-          initial={false}
-          animate={{ opacity: active ? 1 : 0, y: active ? 0 : 12 }}
-          transition={{ duration: 0.45, ease: EASE }}
-        >
-          <Copy project={project} />
-        </motion.div>
-      </motion.div>
-    </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------
-   Below lg: the cards in a row you can swipe, or step through with the
-   arrows, and the copy underneath.
-   ------------------------------------------------------------------ */
-function Strip({ onOpen }) {
-  const strip = useRef(null)
-  const [at, setAt] = useState(0)
-
-  // Nearest card to the middle of the viewport, measured off the real
-  // elements so the gap and the edge padding cannot throw the count off.
-  function onScroll() {
-    const el = strip.current
-    if (!el) return
-    const middle = el.scrollLeft + el.clientWidth / 2
-    let best = 0
-    let closest = Infinity
-    Array.from(el.children).forEach((child, i) => {
-      const distance = Math.abs(child.offsetLeft + child.offsetWidth / 2 - middle)
-      if (distance < closest) {
-        closest = distance
-        best = i
-      }
-    })
-    setAt(best)
-  }
-
-  function step(delta) {
-    const el = strip.current
-    const child = el?.children[at + delta]
-    if (!child) return
-    el.scrollTo({
-      left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2,
-      behavior: 'smooth',
-    })
-  }
-
-  return (
-    <div className="mt-12 lg:hidden">
-      <div
-        ref={strip}
-        onScroll={onScroll}
-        className="mx-[calc(var(--gutter)*-1)] flex snap-x snap-mandatory gap-4 overflow-x-auto px-[var(--gutter)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {projects.map((project, i) => (
-          <div key={project.id} className="w-[84%] shrink-0 snap-center sm:w-[62%]">
-            <div
-              className="aspect-[17/10]"
-              onClick={(e) => {
-                if (project.study) onOpen(project, e.currentTarget.getBoundingClientRect())
-              }}
-            >
-              <Cover project={project} index={i} lifted={i === at} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Reserved height: the titles run from one to four lines, and the arrows
-          below them should not jump every time the strip moves on. */}
-      <div className="mt-10 min-h-[8.5rem]">
-        <motion.div
-          key={projects[at].id}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: EASE }}
-        >
-          <Copy project={projects[at]} />
-        </motion.div>
-      </div>
-
-      <div className="mt-6 flex gap-2">
-        <Arrow dir="prev" onClick={() => step(-1)} label="Previous project" />
-        <Arrow dir="next" onClick={() => step(1)} label="Next project" />
-      </div>
+            {/* box-decoration-break: clone gives each wrapped line its own band,
+                which is what makes it read as a subtitle and not as a label. */}
+            <span className="rounded-[4px] bg-ink/85 px-[0.4em] py-[0.12em] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]">
+              <span className="opacity-70">[{project.subtitle}]</span> {project.title}
+            </span>
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -672,44 +419,52 @@ function Strip({ onOpen }) {
 /* ------------------------------------------------------------------ */
 export default function Work() {
   const reduce = useReducedMotion()
-  const wide = useWide()
   const section = useRef(null)
-  // Where the cards live, and how far they may go. Two different boxes.
-  const stage = useRef(null)
-  const field = useRef(null)
-  const [hovered, setHovered] = useState(null)
-  // The rect the surface grows from is captured at the click, not recomputed:
-  // it is where the card was when it was pressed.
+  const last = projects.length - 1
+  const { scrollYProgress } = useScroll({ target: section, offset: ['start start', 'end end'] })
+  const go = useSteps(section, scrollYProgress, last)
+  const [active, setActive] = useState(0)
+  /* Two steps to opening: `opened` is the case on its way into the camera, and
+     `study` the copy that fades in once it has arrived. */
+  const [opened, setOpened] = useState(null)
   const [study, setStudy] = useState(null)
-  // Resting order of the cards, empty until the first drag. A card not in
-  // here yet keeps its arrival order, 10 + index.
-  const [zOrder, setZOrder] = useState({})
-  const topZ = useRef(10 + projects.length)
+  const onScreen = useInView(section, { margin: '20% 0px' })
+  const { dragged, handlers } = useDrag(section, scrollYProgress, last, go, Boolean(opened))
 
-  function bringToFront(id) {
-    topZ.current += 1
-    setZOrder((order) => ({ ...order, [id]: topZ.current }))
+  useMotionValueEvent(scrollYProgress, 'change', (p) =>
+    setActive(Math.min(last, Math.max(0, Math.round(p * last)))),
+  )
+
+  /* A case at the side comes to the front first; the one in front opens. */
+  function pick(id) {
+    const i = projects.findIndex((p) => p.id === id)
+    // The release of a drag also lands on a case as a click: it is not one.
+    if (i < 0 || opened || dragged.current) return
+    if (i !== active) return go(i)
+    if (projects[i].study) setOpened(id)
   }
 
-  function open(project, from) {
-    setStudy({ project, from })
+  function close() {
+    setStudy(null)
+    setOpened(null)
   }
 
-  /* The page behind is sealed for exactly as long as a study is meant to be
-     open: no scrolling, and inert takes it out of the tab order and the
-     accessibility tree in one attribute, which a z-index alone would not do.
-     Released the moment the study closes rather than when its exit animation
-     ends, so a stalled animation can never strand the page. */
+  /* The page behind is sealed for exactly as long as a case is opening or a
+     study is open: no scrolling, which would turn the ring under the camera,
+     and inert takes it out of the tab order and the accessibility tree in one
+     attribute. Released the moment the study closes rather than when its exit
+     animation ends, so a stalled animation can never strand the page. */
+  const sealed = Boolean(opened || study)
   useEffect(() => {
-    if (!study) return undefined
+    if (!sealed) return undefined
 
     const root = document.getElementById('root')
     const html = document.documentElement
 
     /* Locked on html, not on body. When html is `overflow: visible`, the body's
        own overflow does not propagate to the viewport, so hiding it there locks
-       nothing: the page keeps scrolling behind the study. The gutter is paid
-       back as padding so a platform with classic scrollbars does not jump. */
+       nothing. The gutter is paid back as padding so a platform with classic
+       scrollbars does not jump. */
     const wasOverflow = html.style.overflow
     const wasPadding = html.style.paddingRight
     const bar = window.innerWidth - html.clientWidth
@@ -723,112 +478,64 @@ export default function Work() {
       html.style.paddingRight = wasPadding
       root?.removeAttribute('inert')
     }
-  }, [study])
-
-  const { scrollYProgress } = useScroll({
-    target: section,
-    offset: ['start end', 'end start'],
-  })
+  }, [sealed])
 
   return (
     <section
       id="work"
       ref={section}
-      /* The gap before the dark section lives on the Mesh wrapper, not here: the
-         grid has to cover it, and a margin would fall outside the wrapper.
-
-         overflow-x-clip, not hidden: a card may be pulled past the field by
-         dragElastic, and clip stops that from ever reaching the document as a
-         horizontal scrollbar without turning the section into a scroll container,
-         which hidden would do. relative, because the field hangs off this box.
-
-         No justify-center: the field below is flex-1, and flex-grow claims any
-         leftover space before justify-content sees it, so centering the pair had
-         nothing left to distribute. The gap above the teaser is the padding doing
-         the whole job on its own, so it is written out: lg:pt-32 to match the
-         other sections, which all give their title 128px and left this one at 64
-         nearly touching the nav. */
-      className="gutter relative flex min-h-svh flex-col overflow-x-clip py-24 lg:pb-16 lg:pt-32"
+      /* The track: one screen for the panel plus PER_PROJECT per step, at every
+         width. The gap before the dark section lives on the Mesh wrapper. */
+      className="relative h-[var(--track)]"
+      style={{ '--track': `${100 + last * PER_PROJECT}svh` }}
     >
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Teaser reduce={reduce} />
-      </div>
-
-      {/* How far a card may travel, which is no longer where it lives.
-
-          The stage is the arrangement: the card positions are percentages of it.
-          The field is the room, and it takes what the section has left once the
-          title has had its share, so a card can be carried out over the margin to
-          the edge of the screen but never over the heading. That is why it is a
-          flex item below the title rather than a box pinned to the section: no
-          measuring, and it cannot fall out of step with a title that changes
-          height.
-
-          The negative margin is what lets it out of the gutter: 2.75rem minus the
-          gutter, so its edges land 2.75rem off the screen whatever the breakpoint
-          has made the gutter.
-
-          2.75rem, because the drag box is not what the eye sees: the card is
-          rotated and, while pointed at, scaled. Measured against the real data at
-          the 1400px the stage caps at, the corner of the widest card passes its own
-          box by 28px at rest after a throw, by 40px while it is also being pointed
-          at, and by 58px at the peak of the lean mid-throw. 2.75rem clears the
-          first two, which are the states a card sits in.
-
-          The third is what overflow-x-clip on the section is for, along with the
-          overshoot dragElastic allows: both are transient, and the point of the
-          clip is only that neither can ever reach the document as a scrollbar. */}
-      <div
-        ref={field}
-        className="relative z-10 mx-[calc(2.75rem-var(--gutter))] mt-6 hidden flex-1 items-center justify-center lg:flex"
-      >
-        {/* The stage. A fixed ratio, capped so the whole constellation always
-            fits one screen: the positions in the data are percentages of this
-            box, so they hold their arrangement at any size. */}
-        <div
-          ref={stage}
-          className="relative aspect-[16/9] w-full max-w-[min(124svh,1400px)]"
-        >
-          {projects.map((project, i) => (
-            <Card
-              key={project.id}
-              project={project}
-              index={i}
-              field={field}
-              progress={scrollYProgress}
-              active={hovered === project.id}
-              dim={hovered !== null && hovered !== project.id}
-              onEnter={() => setHovered(project.id)}
-              onLeave={() => setHovered(null)}
-              onOpen={open}
+      {/* overflow-clip, not hidden: hidden would make the panel a scroll
+          container, which useScroll would take for the one the title lives in.
+          z-10 on the panel itself, since sticky makes it a stacking context and
+          the grid, painted after the section, would otherwise go over it. */}
+      <div className="sticky top-0 z-10 h-svh overflow-clip">
+        <div className="absolute inset-0 cursor-grab select-none active:cursor-grabbing" {...handlers}>
+          <Suspense fallback={null}>
+            <Ring
+              projects={projects}
+              position={scrollYProgress}
+              opened={opened}
               reduce={reduce}
-              wide={wide}
-              z={zOrder[project.id] ?? 10 + i}
-              onFront={() => bringToFront(project.id)}
+              running={onScreen && !study}
+              onPick={pick}
+              onDived={(id) => setStudy(projects.find((p) => p.id === id) ?? null)}
             />
-          ))}
+          </Suspense>
         </div>
-      </div>
 
-      {/* Outside the field, which is hidden below lg: the strip is the only thing
-          on screen at those widths. The margin lives on the strip itself, not on a
-          wrapper, since a wrapper keeps its margin on a wide screen even once its
-          content is hidden, and the section stopped fitting one viewport by
-          exactly that much. */}
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <Strip onOpen={open} />
+        <div className="gutter pointer-events-none relative z-10 mx-auto w-full max-w-[1400px] pt-24 [&_a]:pointer-events-auto">
+          <Teaser reduce={reduce} />
+        </div>
+
+        <Subtitle project={projects[active]} hidden={Boolean(opened)} />
+
+        {/* The keyboard's and the screen reader's way in: one button per case.
+            Focusing one brings its case to the front, so a sighted keyboard user
+            sees where they are. */}
+        <ul className="sr-only">
+          {projects.map((project, i) =>
+            project.study ? (
+              <li key={project.id}>
+                <button
+                  type="button"
+                  onFocus={() => go(i)}
+                  onClick={() => setOpened(project.id)}
+                >
+                  {work.open} {project.title}
+                </button>
+              </li>
+            ) : null,
+          )}
+        </ul>
       </div>
 
       <AnimatePresence>
-        {study && (
-          <Study
-            key={study.project.id}
-            project={study.project}
-            mat={MAT[study.project.mat]}
-            from={study.from}
-            onClose={() => setStudy(null)}
-          />
-        )}
+        {study && <Study key={study.id} project={study} onClose={close} />}
       </AnimatePresence>
     </section>
   )
