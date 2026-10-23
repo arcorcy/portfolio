@@ -16,7 +16,7 @@ import {
 import { matColour } from '../lib/contrast.js'
 
 /* ------------------------------------------------------------------
-   The projects as DVD cases flying round a ring, in WebGL.
+   The projects as DVD cases in a row that never ends, in WebGL.
 
    Loaded on its own (React.lazy in Work.jsx), so the hero never waits for
    Three.js. The page owns everything that is a decision: which project is in
@@ -33,15 +33,17 @@ const W = 1.35
 const H = 1.9
 const HALF = 0.07
 
-/* The ring. RADIUS is wide enough for the cases either side of the front one
-   to show without crowding it. TILT leans it towards the camera a touch, so the
-   ones at the back read as further away and not just smaller. */
-const RADIUS = 2.7
+/* The row. SPACING is centre to centre, enough air between two cases that
+   the turned ones do not touch. TILT leans the row towards the camera a touch.
+
+   It loops: each case sits at its distance from the one in front, wrapped into
+   half the row either side, so going past the last case brings the first one
+   round. The jump from one end to the other happens at the seam, half the row out,
+   which is off screen on any ordinary screen; on one wide enough to see it, a
+   case shrinks away over FADE before it jumps rather than popping. */
+const SPACING = 1.85
 const TILT = 0.07
-/* How much of the ring's turn a case takes on itself. At 1 each case faced
-   straight out of the ring, so the two either side of the front one showed only
-   their spines; at half, every case keeps its cover turned towards the camera. */
-const FACE = 0.5
+const FADE = 0.9
 /* Every case rests a few degrees turned, spine towards the camera. Square on, a
    case is a rectangle and reads as a card; turned, its depth and its printed
    spine show, and the sleeve catches the light. */
@@ -54,7 +56,7 @@ const FOV = 35
 const REST = 5.4
 const SEEN_WIDTH = 2.4
 
-/* How fast the ring catches up with the case in front, per second. A spring would
+/* How fast the row catches up with the case in front, per second. A spring would
    overshoot past a case; this settles on it. */
 const FOLLOW = 7
 
@@ -352,7 +354,7 @@ function DvdCase({ project, art, register, onPointer }) {
    film scales with its brightness, but the light it pours on the print scales
    with its size too, and a broad softbox bright enough to show on the film
    washed every cover out to white. The side strips catch the rounded edges as
-   the ring turns. Panels are unlit colours above 1, so they act as lights. */
+   the row slides. Panels are unlit colours above 1, so they act as lights. */
 function studio() {
   const room = new THREE.Scene()
   const panel = (w, h, power, at) => {
@@ -411,13 +413,13 @@ function Studio({ intensity }) {
   return null
 }
 
-/* Everything that moves, in one frame loop: the ring following the case in front, the
+/* Everything that moves, in one frame loop: the row following the case in front, the
    cases bobbing, the hovered one easing forward, and the open and close moves. */
 function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, onDived }) {
   const art = useArtwork(projects)
   const cases = useRef({})
   const shadows = useRef({})
-  const ring = useRef(null)
+  const row = useRef(null)
   // One material per shadow, since each fades on its own.
   const shadowMaterials = useMemo(
     () =>
@@ -434,7 +436,7 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
     [projects],
   )
   useEffect(() => () => shadowMaterials.forEach((m) => m.dispose()), [shadowMaterials])
-  const at = useRef(position.get() * Math.max(1, projects.length - 1))
+  const at = useRef(position.get())
   const lift = useRef({})
   const move = useRef({ id: null, from: 0, to: 0, start: 0, dur: 1, told: true })
   const camera = useThree((s) => s.camera)
@@ -466,13 +468,13 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
   }, [opened, reduce, invalidate])
 
   useFrame((state, dt) => {
-    const step = (Math.PI * 2) / projects.length
-    const last = Math.max(1, projects.length - 1)
-    const target = position.get() * last
+    const n = projects.length
+    const seam = (n * SPACING) / 2
+    const target = position.get()
     at.current = reduce ? target : damp(at.current, target, FOLLOW, Math.min(dt, 0.1))
     const t = state.clock.elapsedTime
 
-    ring.current.rotation.x = TILT
+    row.current.rotation.x = TILT
 
     // The open or close move under way, if any.
     const m = move.current
@@ -489,7 +491,10 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
       const refs = cases.current[project.id]
       if (!refs?.group.current) return
       const g = refs.group.current
-      const a = (i - at.current) * step
+      // How many places from the front this case is, the short way round.
+      const d = ((((i - at.current + n / 2) % n) + n) % n) - n / 2
+      const x = d * SPACING
+      const size = clamp01((seam - Math.abs(x)) / FADE)
       const bob = reduce ? 0 : Math.sin(t * 0.8 + i * 1.7) * 0.06
       const l = (lift.current[project.id] = damp(
         lift.current[project.id] ?? 0,
@@ -498,12 +503,9 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
         dt,
       ))
 
-      g.position.set(
-        RADIUS * Math.sin(a),
-        bob + l * 0.06,
-        RADIUS * Math.cos(a) - RADIUS + l * 0.25,
-      )
-      g.rotation.set(0, a * FACE + YAW, reduce ? 0 : Math.sin(t * 0.6 + i) * 0.025)
+      g.position.set(x, bob + l * 0.06, l * 0.25)
+      g.rotation.set(0, YAW, reduce ? 0 : Math.sin(t * 0.6 + i) * 0.025)
+      g.scale.setScalar(Math.max(0.0001, size))
 
       /* The shadow stays on the floor under the case, turns with it, and
          spreads and fades as the case rises off it. */
@@ -512,15 +514,15 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
         const rise = g.position.y + 0.06
         sh.position.set(g.position.x, FLOOR, g.position.z)
         sh.rotation.set(-Math.PI / 2, 0, g.rotation.y)
-        sh.scale.set(W * (1.25 + rise), 0.42 + rise, 1)
-        sh.material.opacity = 0.32 * (1 - rise * 1.5)
+        sh.scale.set(W * (1.25 + rise) * size, (0.42 + rise) * size, 1)
+        sh.material.opacity = 0.32 * (1 - rise * 1.5) * size
       }
 
       const open = m.id === project.id ? ease(clamp01(p / LID_UNTIL)) : 0
       refs.lid.current.rotation.y = -(LID_OPEN * open + l * 0.16 * (1 - open))
     })
 
-    /* The camera: at rest in front of the ring, far enough back for the case to
+    /* The camera: at rest in front of the row, far enough back for the case to
        fit the screen whatever its shape; mid-move, on its way into the inside of
        the open cover, aimed through the cover's own transform so the case does
        not have to be squarely in front for the dive to land on it. */
@@ -560,8 +562,7 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
       <ambientLight intensity={AMBIENT} />
       <directionalLight position={[3, 4, 6]} intensity={KEY} />
       <directionalLight position={[-5, 1, -3]} intensity={0.5} />
-      <group ref={ring} position={[0, -0.05, 0]}>
-        {/* The ring turns about its own centre, RADIUS behind the front case. */}
+      <group ref={row} position={[0, -0.05, 0]}>
         {projects.map((project, i) => (
           <mesh
             key={`${project.id}-shadow`}
@@ -594,8 +595,9 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
   )
 }
 
-/* `position` is which case is in front, 0 to 1 across the cases, as a
-   MotionValue owned by the section: read every frame, never through React
+/* `position` is which case is in front, as a count of cases that runs on
+   without end either way (5 and 0 are the same case with five projects), and
+   a MotionValue owned by the section: read every frame, never through React
    state, so a drag does not re-render anything. */
 export default function Ring({ projects, position, opened, reduce, running, onPick, onDived }) {
   const [hovered, setHovered] = useState(null)
@@ -612,8 +614,8 @@ export default function Ring({ projects, position, opened, reduce, running, onPi
          not or when a study covers it. */
       frameloop={running ? 'always' : 'demand'}
       /* pan-y, or the canvas would swallow a phone's scroll: a vertical move
-         over the ring is still the page's. */
-      // Otherwise the stage's grab cursor, inherited, says the ring can be dragged.
+         over the row is still the page's. */
+      // Otherwise the stage's grab cursor, inherited, says the row can be dragged.
       style={{ touchAction: 'pan-y', cursor: hovered ? 'pointer' : undefined }}
       onPointerMissed={() => setHovered(null)}
     >

@@ -13,7 +13,7 @@ import { work } from '../data/content.js'
 import { projects } from '../data/projects.js'
 import Study from './Study.jsx'
 
-/* The ring is WebGL, Three.js and all: loaded on its own so the hero does not
+/* The row is WebGL, Three.js and all: loaded on its own so the hero does not
    wait for it. */
 const Ring = lazy(() => import('./Ring.jsx'))
 
@@ -182,13 +182,14 @@ function Teaser({ reduce }) {
 }
 
 /* ------------------------------------------------------------------
-   Turning the ring by hand: a horizontal drag anywhere on the stage.
+   Sliding the row by hand: a horizontal drag anywhere on the stage.
 
-   The section owns which case is in front, as `position`, 0 to 1 across the
-   cases, which the ring reads every frame. A drag moves it DRAG_PER_CASE of the
-   screen's width per case and the ring follows. Letting go lands on a case: the
-   one the drag was heading for once it has gone LAND_AFTER of the way there,
-   else back.
+   The section owns which case is in front, as `position`, a count of cases
+   with no end either way, which the row reads every frame. A drag moves it one
+   case per DRAG_PER_CASE of the screen's width, for as long as the drag goes:
+   the row loops, so there is no last case to stop at. Letting go lands on a
+   case: the one the drag was heading for once it has gone LAND_AFTER of the
+   way there, else back.
 
    A drag is only a drag past DRAG_FROM pixels. Under that it is a click and is
    left alone, which is why the pointer is captured only then: captured from the
@@ -198,7 +199,7 @@ const DRAG_PER_CASE = 0.3
 const DRAG_FROM = 6
 const LAND_AFTER = 0.2
 
-function useDrag(position, last, go, show, off) {
+function useDrag(position, go, show, off) {
   const drag = useRef(null)
   // Whether the gesture that just ended was a drag, read by the click after it.
   const dragged = useRef(false)
@@ -206,7 +207,7 @@ function useDrag(position, last, go, show, off) {
   function onPointerDown(e) {
     if (off || (e.pointerType === 'mouse' && e.button !== 0)) return
     dragged.current = false
-    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: position.get() * last, on: false }
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: position.get(), on: false }
   }
 
   function onPointerMove(e) {
@@ -220,8 +221,8 @@ function useDrag(position, last, go, show, off) {
       dragged.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
     }
-    const f = Math.min(last, Math.max(0, d.from - dx / (window.innerWidth * DRAG_PER_CASE)))
-    position.set(f / Math.max(1, last))
+    const f = d.from - dx / (window.innerWidth * DRAG_PER_CASE)
+    position.set(f)
     show(Math.round(f))
   }
 
@@ -229,7 +230,7 @@ function useDrag(position, last, go, show, off) {
     const d = drag.current
     drag.current = null
     if (!d?.on) return
-    const f = position.get() * last
+    const f = position.get()
     const dx = e.clientX - d.x
     go(dx < 0 ? Math.ceil(f - LAND_AFTER) : Math.floor(f + LAND_AFTER))
   }
@@ -242,7 +243,7 @@ function useDrag(position, last, go, show, off) {
 
 /* ------------------------------------------------------------------
    The title of the case in front, at the foot of the screen like a film's
-   subtitle: white on a dark band per line, so it reads over whatever the ring
+   subtitle: white on a dark band per line, so it reads over whatever the row
    puts behind it. The kind of project goes first in brackets, the way subtitles
    for the hard of hearing set a sound apart from speech.
    ------------------------------------------------------------------ */
@@ -278,16 +279,27 @@ function Subtitle({ project, hidden }) {
 export default function Work() {
   const reduce = useReducedMotion()
   const section = useRef(null)
-  const last = projects.length - 1
-  /* Which case is in front, 0 to 1 across the cases. Read by the ring every
-     frame rather than through React state, so a drag re-renders nothing. */
+  const count = projects.length
+  // Any count of cases, either way, to the project it lands on.
+  const wrap = (i) => ((i % count) + count) % count
+  /* Which case is in front, as a count of cases with no end either way: the
+     row loops, and 0, 5 and -5 are the same case with five projects. Read by
+     the row every frame rather than through React state, so a drag
+     re-renders nothing. */
   const position = useMotionValue(0)
   const [active, setActive] = useState(0)
+  const show = (i) => setActive(wrap(i))
 
   function go(i) {
-    const to = Math.min(last, Math.max(0, i))
-    setActive(to)
-    position.set(to / Math.max(1, last))
+    show(i)
+    position.set(i)
+  }
+
+  /* To bring a project to the front, the short way round: from the case in
+     front, the fewest places left or right that land on it. */
+  function bring(i) {
+    const here = Math.round(position.get())
+    go(here + wrap(i - here + Math.floor(count / 2)) - Math.floor(count / 2))
   }
 
   /* Two steps to opening: `opened` is the case on its way into the camera, and
@@ -295,14 +307,14 @@ export default function Work() {
   const [opened, setOpened] = useState(null)
   const [study, setStudy] = useState(null)
   const onScreen = useInView(section, { margin: '20% 0px' })
-  const { dragged, handlers } = useDrag(position, last, go, setActive, Boolean(opened))
+  const { dragged, handlers } = useDrag(position, go, show, Boolean(opened))
 
   /* A case at the side comes to the front first; the one in front opens. */
   function pick(id) {
     const i = projects.findIndex((p) => p.id === id)
     // The release of a drag also lands on a case as a click: it is not one.
     if (i < 0 || opened || dragged.current) return
-    if (i !== active) return go(i)
+    if (i !== active) return bring(i)
     if (projects[i].study) setOpened(id)
   }
 
@@ -312,7 +324,7 @@ export default function Work() {
   }
 
   /* The page behind is sealed for exactly as long as a case is opening or a
-     study is open: no scrolling, which would carry the ring off under the
+     study is open: no scrolling, which would carry the row off under the
      camera, and inert takes it out of the tab order and the accessibility tree in one
      attribute. Released the moment the study closes rather than when its exit
      animation ends, so a stalled animation can never strand the page. */
@@ -346,7 +358,7 @@ export default function Work() {
     <section
       id="work"
       ref={section}
-      /* One screen, at every width: the ring turns by hand, not with the
+      /* One screen, at every width: the row slides by hand, not with the
          scroll. The gap before the dark section lives on the Mesh wrapper. */
       className="relative"
     >
@@ -383,7 +395,7 @@ export default function Work() {
               <li key={project.id}>
                 <button
                   type="button"
-                  onFocus={() => go(i)}
+                  onFocus={() => bring(i)}
                   onClick={() => setOpened(project.id)}
                 >
                   {work.open} {project.title}
