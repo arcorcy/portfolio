@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { cubicBezier } from 'framer-motion'
-import { drawCover, drawDisc, drawSpine } from '../lib/covers.js'
+import {
+  drawBack,
+  drawCover,
+  drawDisc,
+  drawDiscSurface,
+  drawPaper,
+  drawPlastic,
+  drawSmudges,
+  drawSpine,
+} from '../lib/covers.js'
 import { matColour } from '../lib/contrast.js'
 
 /* ------------------------------------------------------------------
@@ -10,7 +20,7 @@ import { matColour } from '../lib/contrast.js'
 
    Loaded on its own (React.lazy in Work.jsx), so the hero never waits for
    Three.js. The page owns everything that is a decision: which project is in
-   front comes from the scroll, which one is open from a click. This file only
+   front comes from a drag or a click, which one is open from a click. This file only
    draws them and plays the moves between.
    ------------------------------------------------------------------ */
 
@@ -32,6 +42,10 @@ const TILT = 0.07
    straight out of the ring, so the two either side of the front one showed only
    their spines; at half, every case keeps its cover turned towards the camera. */
 const FACE = 0.5
+/* Every case rests a few degrees turned, spine towards the camera. Square on, a
+   case is a rectangle and reads as a card; turned, its depth and its printed
+   spine show, and the sleeve catches the light. */
+const YAW = 0.3
 const FOV = 35
 
 /* The camera's resting distance: the front case at about 55% of the screen's
@@ -40,7 +54,7 @@ const FOV = 35
 const REST = 5.4
 const SEEN_WIDTH = 2.4
 
-/* How fast the ring catches up with the scroll, per second. A spring would
+/* How fast the ring catches up with the case in front, per second. A spring would
    overshoot past a case; this settles on it. */
 const FOLLOW = 7
 
@@ -53,6 +67,13 @@ const CLOSE_MS = 1100
 const DIVE_FROM = 0.25
 const LID_UNTIL = 0.55
 const LID_OPEN = Math.PI * 0.985
+
+/* The light, balanced so a cover facing the camera comes out at about its own
+   colour once the studio's reflections are added on top: with tone mapping off
+   (`flat` on the Canvas), more than that clips the pale mats to white. */
+const ENV = 0.5
+const AMBIENT = 0.95
+const KEY = 1.65
 
 const tmp = new THREE.Vector3()
 const tmpLook = new THREE.Vector3()
@@ -82,10 +103,15 @@ function useArtwork(projects) {
     let live = true
     const made = []
     projects.forEach((project) => {
-      Promise.all([drawCover(project), drawSpine(project), drawDisc(project)]).then(
-        ([cover, spine, disc]) => {
+      Promise.all([drawCover(project), drawBack(project), drawSpine(project), drawDisc(project)]).then(
+        ([cover, back, spine, disc]) => {
           if (!live) return
-          const set = { cover: texture(cover, gl), spine: texture(spine, gl), disc: texture(disc, gl) }
+          const set = {
+            cover: texture(cover, gl),
+            back: texture(back, gl),
+            spine: texture(spine, gl),
+            disc: texture(disc, gl),
+          }
           made.push(set)
           setArt((a) => ({ ...a, [project.id]: set }))
         },
@@ -100,62 +126,161 @@ function useArtwork(projects) {
   return art
 }
 
-const halfGeometry = new THREE.BoxGeometry(W, H, HALF)
-const spineGeometry = new THREE.PlaneGeometry(HALF * 2, H)
-const discGeometry = new THREE.CircleGeometry(0.62, 96)
+/* ------------------------------------------------------------------
+   The case, modelled on the Amaray keep case every DVD came in: two shells of
+   black polypropylene with softened edges, a printed paper insert slid under
+   a clear sleeve on the outside, and inside, a moulded tray with a ridge round
+   the disc's well and a toothed hub the disc clips onto.
+
+   The shells are geometry; the paper, the sleeve and the disc are thin layers
+   laid a hair off the plastic. The sleeve is not a mesh of its own: the
+   paper's clearcoat is exactly that, a smooth glossy film over a matte print,
+   and it costs nothing a second transparent layer would.
+   ------------------------------------------------------------------ */
+
+// Off the plastic by a fraction of a millimetre: enough not to flicker.
+const LAYER = 0.0012
+// The softened edge of a shell, 1.5 mm.
+const EDGE = 0.015
+// The insert stops short of the rounded edges, as the paper does in the sleeve.
+const INSET = 0.012
+// A 12 cm disc with its 15 mm hole, the well's ridge just outside it.
+const DISC_R = 0.6
+const HOLE_R = 0.075
+const TEETH = 12
+
+const shellGeometry = new RoundedBoxGeometry(W, H, HALF, 4, EDGE)
+const insertGeometry = new THREE.PlaneGeometry(W - INSET * 2, H - INSET * 2)
+const spineGeometry = new THREE.PlaneGeometry(HALF * 2 - EDGE * 2, H - INSET * 2)
+const insideGeometry = new THREE.PlaneGeometry(W - EDGE * 2, H - EDGE * 2)
+const discGeometry = new THREE.RingGeometry(HOLE_R, DISC_R, 160, 1)
+const ridgeGeometry = new THREE.TorusGeometry(DISC_R + 0.018, 0.005, 10, 160)
+const hubGeometry = new THREE.CylinderGeometry(0.05, 0.052, 0.008, 48)
+const toothGeometry = new THREE.BoxGeometry(0.016, 0.012, 0.014)
+
+/* The soft shadow each case casts on a floor just under it: a blurred ellipse
+   rather than a real shadow map, which would cost a second render of the
+   scene every frame for a shape this simple. The floor itself is not drawn,
+   so the shadow lands on the page. */
+const FLOOR = -1.18
+const shadowGeometry = new THREE.PlaneGeometry(1, 1)
+let shadowTexture = null
+function shadowMap() {
+  if (shadowTexture) return shadowTexture
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const ctx = c.getContext('2d')
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64)
+  g.addColorStop(0, 'rgba(0, 0, 0, 1)')
+  g.addColorStop(0.45, 'rgba(0, 0, 0, 0.55)')
+  g.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 128, 128)
+  shadowTexture = new THREE.CanvasTexture(c)
+  return shadowTexture
+}
+
+/* The surfaces every case shares, made once on the first case that needs them.
+   Repeats are per face size, so a grain is the same size on the cover as on
+   the spine. */
+let shared = null
+function surfaces(gl) {
+  if (shared) return shared
+  // Data, not colour: left in the default linear space.
+  const tile = (canvas, repeat) => {
+    const t = new THREE.CanvasTexture(canvas)
+    t.wrapS = t.wrapT = THREE.RepeatWrapping
+    t.repeat.set(...repeat)
+    t.anisotropy = gl.capabilities.getMaxAnisotropy()
+    return t
+  }
+  const plastic = drawPlastic()
+  const paper = drawPaper()
+  shared = {
+    plastic: tile(plastic, [9, 12.7]),
+    paper: tile(paper, [4, 5.6]),
+    paperSpine: tile(paper, [0.4, 5.6]),
+    smudges: tile(drawSmudges(), [1, 1.4]),
+    disc: tile(drawDiscSurface(), [1, 1]),
+  }
+  shared.disc.wrapS = shared.disc.wrapT = THREE.ClampToEdgeWrapping
+  return shared
+}
 
 function DvdCase({ project, art, register, onPointer }) {
   const group = useRef(null)
   const lid = useRef(null)
+  const gl = useThree((s) => s.gl)
 
-  /* Box faces go +x, -x, +y, -y, +z, -z. The plastic is everything but the
-     printed faces; the inside of the cover is unlit, so the colour the camera
-     dives into is the mat's exact hex and meets the study's header without a
-     seam (lighting and tone mapping would have shifted it). */
+  /* The inside of the cover is unlit, so the colour the camera dives into is
+     the mat's exact hex and meets the study's header without a seam (lighting
+     and reflections would have shifted it). It is the insert's reverse, which
+     is printed on plenty of real cases. */
   const materials = useMemo(() => {
     const mat = matColour(project.mat)
-    const plastic = new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.38 })
-    const tray = new THREE.MeshStandardMaterial({ color: '#0e0e11', roughness: 0.55 })
-    const back = new THREE.MeshStandardMaterial({ color: mat, roughness: 0.6 })
-    const front = new THREE.MeshPhysicalMaterial({
-      color: art ? '#ffffff' : mat,
-      map: art?.cover ?? null,
-      roughness: 0.45,
-      clearcoat: 1,
-      clearcoatRoughness: 0.18,
+    const s = surfaces(gl)
+
+    const plastic = new THREE.MeshPhysicalMaterial({
+      color: '#121215',
+      roughness: 0.62,
+      roughnessMap: s.plastic,
+      bumpMap: s.plastic,
+      bumpScale: 0.12,
+      clearcoat: 0.25,
+      clearcoatRoughness: 0.45,
     })
-    const inside = new THREE.MeshBasicMaterial({ color: mat, toneMapped: false })
-    const spine = new THREE.MeshStandardMaterial({
-      color: art ? '#ffffff' : mat,
-      map: art?.spine ?? null,
-      roughness: 0.5,
-    })
-    const disc = new THREE.MeshStandardMaterial({
-      map: art?.disc ?? null,
+    // The paper under its sleeve: a matte print, a smooth film over it.
+    const printed = (map, grain, fallback) =>
+      new THREE.MeshPhysicalMaterial({
+        color: map ? '#ffffff' : fallback,
+        map: map ?? null,
+        roughness: 0.78,
+        bumpMap: grain,
+        bumpScale: 0.25,
+        clearcoat: 1,
+        clearcoatRoughness: 0.16,
+        clearcoatRoughnessMap: s.smudges,
+      })
+    const disc = new THREE.MeshPhysicalMaterial({
       color: art ? '#ffffff' : '#c9cbd2',
-      transparent: true,
-      alphaTest: 0.5,
-      metalness: 0.35,
-      roughness: 0.3,
+      map: art?.disc ?? null,
+      metalness: 1,
+      metalnessMap: s.disc,
+      roughness: 1,
+      roughnessMap: s.disc,
+      iridescence: 1,
+      iridescenceMap: s.disc,
+      iridescenceIOR: 1.6,
+      iridescenceThicknessRange: [250, 700],
+      side: THREE.DoubleSide,
     })
+
     return {
-      base: [plastic, plastic, plastic, plastic, tray, back],
-      lid: [plastic, plastic, plastic, plastic, front, inside],
-      spine,
+      plastic,
+      front: printed(art?.cover, s.paper, mat),
+      spine: printed(art?.spine, s.paperSpine, mat),
+      back: printed(art?.back, s.paper, mat),
+      inside: new THREE.MeshBasicMaterial({ color: mat, toneMapped: false }),
       disc,
     }
-  }, [project.mat, art])
+  }, [project.mat, art, gl])
 
-  useEffect(
-    () => () => {
-      new Set([...materials.base, ...materials.lid, materials.spine, materials.disc]).forEach((m) =>
-        m.dispose(),
-      )
-    },
-    [materials],
-  )
+  useEffect(() => () => Object.values(materials).forEach((m) => m.dispose()), [materials])
 
   useEffect(() => register(project.id, { group, lid }), [project.id, register])
+
+  const teeth = useMemo(
+    () =>
+      Array.from({ length: TEETH }, (_, i) => {
+        const a = (i / TEETH) * Math.PI * 2
+        return { a, x: Math.cos(a) * (HOLE_R - 0.012), y: Math.sin(a) * (HOLE_R - 0.012) }
+      }),
+    [],
+  )
+
+  /* Inside the base, laid out from its centre, a little towards the edge that
+     opens, as a real tray is. */
+  const well = [0.02, 0, LAYER]
 
   return (
     <group
@@ -166,28 +291,149 @@ function DvdCase({ project, art, register, onPointer }) {
       }}
       onPointerOut={() => onPointer(project.id, false)}
     >
-      <mesh geometry={halfGeometry} material={materials.base} position={[0, 0, -HALF / 2]} />
-      <mesh geometry={discGeometry} material={materials.disc} position={[0.02, 0, 0.003]} />
+      {/* The base: its shell, the back insert, and the tray inside. */}
+      <mesh geometry={shellGeometry} material={materials.plastic} position={[0, 0, -HALF / 2]} />
+      <mesh
+        geometry={insertGeometry}
+        material={materials.back}
+        position={[0, 0, -HALF - LAYER]}
+        rotation={[0, Math.PI, 0]}
+      />
+      <group position={well}>
+        <mesh geometry={ridgeGeometry} material={materials.plastic} />
+        <mesh geometry={hubGeometry} material={materials.plastic} rotation={[Math.PI / 2, 0, 0]} />
+        {teeth.map((t) => (
+          <mesh
+            key={t.a}
+            geometry={toothGeometry}
+            material={materials.plastic}
+            position={[t.x, t.y, 0.006]}
+            rotation={[0, 0, t.a]}
+          />
+        ))}
+        <mesh geometry={discGeometry} material={materials.disc} position={[0, 0, 0.004]} />
+      </group>
+
+      {/* The spine, which the insert wraps round. */}
       <mesh
         geometry={spineGeometry}
         material={materials.spine}
-        position={[-W / 2 - 0.001, 0, 0]}
+        position={[-W / 2 - LAYER, 0, 0]}
         rotation={[0, -Math.PI / 2, 0]}
       />
-      {/* The hinge sits on the spine edge, so the cover swings open like a book. */}
-      <group ref={lid} position={[-W / 2, 0, 0]}>
-        <mesh geometry={halfGeometry} material={materials.lid} position={[W / 2, 0, HALF / 2]} />
+
+      {/* The cover, hinged on the front corner of the spine, as on a real
+          case: the spine belongs to the base and stays put, and the cover's
+          own edge swings in behind it. Hinged mid-depth, the cover's black
+          edge swung out past the printed spine as soon as it opened at all,
+          which a hover does by a few degrees. */}
+      <group ref={lid} position={[-W / 2, 0, HALF]}>
+        <mesh geometry={shellGeometry} material={materials.plastic} position={[W / 2, 0, -HALF / 2]} />
+        <mesh geometry={insertGeometry} material={materials.front} position={[W / 2, 0, LAYER]} />
+        <mesh
+          geometry={insideGeometry}
+          material={materials.inside}
+          position={[W / 2, 0, -HALF - LAYER]}
+          rotation={[0, Math.PI, 0]}
+        />
       </group>
     </group>
   )
 }
 
-/* Everything that moves, in one frame loop: the ring following the scroll, the
+/* The room the cases reflect, built as a photo studio and blurred into an
+   environment map once: a dim room, lighter overhead, a thin bright strip
+   light where the covers mirror it, and two tall strips at the sides.
+
+   A cover turned YAW from the camera mirrors a patch of the room about twice
+   that angle off to the side, and the strip runs diagonally through that
+   patch: that is the streak of glare across the sleeve that says there is a
+   film over the print. It is thin on purpose. A light's reflection on the
+   film scales with its brightness, but the light it pours on the print scales
+   with its size too, and a broad softbox bright enough to show on the film
+   washed every cover out to white. The side strips catch the rounded edges as
+   the ring turns. Panels are unlit colours above 1, so they act as lights. */
+function studio() {
+  const room = new THREE.Scene()
+  const panel = (w, h, power, at) => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(power, power, power), side: THREE.DoubleSide }),
+    )
+    m.position.set(...at)
+    m.lookAt(0, 0, 0)
+    room.add(m)
+    return m
+  }
+
+  const walls = new THREE.Mesh(
+    new THREE.SphereGeometry(30, 32, 16),
+    new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true }),
+  )
+  // Lighter overhead, darker underfoot.
+  const position = walls.geometry.attributes.position
+  const colours = []
+  for (let i = 0; i < position.count; i++) {
+    const v = 0.08 + 0.32 * ((position.getY(i) / 30 + 1) / 2) ** 2
+    colours.push(v, v, v)
+  }
+  walls.geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3))
+  room.add(walls)
+
+  const glare = panel(0.3, 16, 16, [5.9, 0.4, 6.8])
+  glare.rotateZ(0.45)
+  panel(1.2, 10, 4, [8, 0.5, 2.5])
+  panel(1.2, 10, 2, [-8, 0, -1])
+  return room
+}
+
+function Studio({ intensity }) {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const room = studio()
+    const map = pmrem.fromScene(room, 0.02).texture
+    scene.environment = map
+    scene.environmentIntensity = intensity
+    room.traverse((o) => {
+      o.geometry?.dispose()
+      o.material?.dispose()
+    })
+    pmrem.dispose()
+    return () => {
+      scene.environment = null
+      map.dispose()
+    }
+  }, [gl, scene, intensity])
+
+  return null
+}
+
+/* Everything that moves, in one frame loop: the ring following the case in front, the
    cases bobbing, the hovered one easing forward, and the open and close moves. */
 function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, onDived }) {
   const art = useArtwork(projects)
   const cases = useRef({})
+  const shadows = useRef({})
   const ring = useRef(null)
+  // One material per shadow, since each fades on its own.
+  const shadowMaterials = useMemo(
+    () =>
+      projects.map(
+        () =>
+          new THREE.MeshBasicMaterial({
+            map: shadowMap(),
+            color: '#000000',
+            transparent: true,
+            opacity: 0.32,
+            depthWrite: false,
+          }),
+      ),
+    [projects],
+  )
+  useEffect(() => () => shadowMaterials.forEach((m) => m.dispose()), [shadowMaterials])
   const at = useRef(position.get() * Math.max(1, projects.length - 1))
   const lift = useRef({})
   const move = useRef({ id: null, from: 0, to: 0, start: 0, dur: 1, told: true })
@@ -257,7 +503,18 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
         bob + l * 0.06,
         RADIUS * Math.cos(a) - RADIUS + l * 0.25,
       )
-      g.rotation.set(0, a * FACE, reduce ? 0 : Math.sin(t * 0.6 + i) * 0.025)
+      g.rotation.set(0, a * FACE + YAW, reduce ? 0 : Math.sin(t * 0.6 + i) * 0.025)
+
+      /* The shadow stays on the floor under the case, turns with it, and
+         spreads and fades as the case rises off it. */
+      const sh = shadows.current[project.id]
+      if (sh) {
+        const rise = g.position.y + 0.06
+        sh.position.set(g.position.x, FLOOR, g.position.z)
+        sh.rotation.set(-Math.PI / 2, 0, g.rotation.y)
+        sh.scale.set(W * (1.25 + rise), 0.42 + rise, 1)
+        sh.material.opacity = 0.32 * (1 - rise * 1.5)
+      }
 
       const open = m.id === project.id ? ease(clamp01(p / LID_UNTIL)) : 0
       refs.lid.current.rotation.y = -(LID_OPEN * open + l * 0.16 * (1 - open))
@@ -280,8 +537,9 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
       const near = Math.min((H * 0.86) / (2 * tan), (W * 0.86) / (2 * tan * aspect))
       const g = refs.group.current
       g.updateWorldMatrix(true, false)
-      const lidCentre = new THREE.Vector3(-W, 0, 0)
-      const into = g.localToWorld(lidCentre.clone().setZ(near))
+      // Where the inside of the cover lies once it is open flat, in the case's own space.
+      const lidCentre = new THREE.Vector3(-W, 0, HALF * 2)
+      const into = g.localToWorld(lidCentre.clone().setZ(HALF * 2 + near))
       const onto = g.localToWorld(lidCentre)
       home.lerp(into, reduce ? (p > 0.5 ? 1 : 0) : dive)
       look.lerp(onto, reduce ? (p > 0.5 ? 1 : 0) : Math.min(1, dive * 1.6))
@@ -298,11 +556,23 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
       {/* Balanced so a cover facing the camera comes out at about its own
           colour: with tone mapping off (`flat` on the Canvas), more light than
           that would clip the pale mats to white. */}
-      <ambientLight intensity={1.3} />
-      <directionalLight position={[3, 4, 6]} intensity={1.7} />
+      <Studio intensity={ENV} />
+      <ambientLight intensity={AMBIENT} />
+      <directionalLight position={[3, 4, 6]} intensity={KEY} />
       <directionalLight position={[-5, 1, -3]} intensity={0.5} />
       <group ref={ring} position={[0, -0.05, 0]}>
         {/* The ring turns about its own centre, RADIUS behind the front case. */}
+        {projects.map((project, i) => (
+          <mesh
+            key={`${project.id}-shadow`}
+            ref={(m) => {
+              shadows.current[project.id] = m
+            }}
+            geometry={shadowGeometry}
+            material={shadowMaterials[i]}
+            renderOrder={-1}
+          />
+        ))}
         {projects.map((project) => (
           <group
             key={project.id}
@@ -324,9 +594,9 @@ function Scene({ projects, position, opened, hovered, reduce, onHover, onPick, o
   )
 }
 
-/* `position` is the scroll's progress through the section, 0 to 1, as a
-   MotionValue: read every frame, never through React state, so scrolling does
-   not re-render anything. */
+/* `position` is which case is in front, 0 to 1 across the cases, as a
+   MotionValue owned by the section: read every frame, never through React
+   state, so a drag does not re-render anything. */
 export default function Ring({ projects, position, opened, reduce, running, onPick, onDived }) {
   const [hovered, setHovered] = useState(null)
 
@@ -341,8 +611,8 @@ export default function Ring({ projects, position, opened, reduce, running, onPi
       /* Drawn every frame while the section is on screen, not at all when it is
          not or when a study covers it. */
       frameloop={running ? 'always' : 'demand'}
-      /* pan-y, or the canvas would swallow a phone's scroll, which is what turns
-         the ring. */
+      /* pan-y, or the canvas would swallow a phone's scroll: a vertical move
+         over the ring is still the page's. */
       // Otherwise the stage's grab cursor, inherited, says the ring can be dragged.
       style={{ touchAction: 'pan-y', cursor: hovered ? 'pointer' : undefined }}
       onPointerMissed={() => setHovered(null)}

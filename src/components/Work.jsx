@@ -1,15 +1,14 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   AnimatePresence,
-  animate,
   motion,
   useInView,
-  useMotionValueEvent,
+  useMotionValue,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'framer-motion'
-import { Headline, EASE, PINNED_EXIT } from '../lib/motion.jsx'
+import { Headline, EASE } from '../lib/motion.jsx'
 import { work } from '../data/content.js'
 import { projects } from '../data/projects.js'
 import Study from './Study.jsx'
@@ -17,32 +16,6 @@ import Study from './Study.jsx'
 /* The ring is WebGL, Three.js and all: loaded on its own so the hero does not
    wait for it. */
 const Ring = lazy(() => import('./Ring.jsx'))
-
-/* Scroll length of one project, in svh. The track is one screen for the panel
-   plus this much per step between two projects, and each step turns the ring
-   by one case. */
-const PER_PROJECT = 80
-
-/* The scroll is segmented: one wheel gesture is one project. STEP is how long
-   the page takes to travel to the next case. QUIET is the silence a gesture
-   has to end on before the next one counts: a trackpad keeps firing its
-   inertia for most of a second after the fingers lift, and without it one
-   swipe would run through every project. NUDGE is the smallest delta that
-   counts as a gesture, under which a trackpad's resting jitter would step.
-
-   Silence alone is not enough to find where a gesture starts: someone swiping
-   again before the last swipe's inertia has died out never leaves a gap, and
-   every swipe after the first was swallowed. Inertia only ever decays, so a
-   delta that jumps above the one before it (RISE, from at least RISE_FROM) or
-   flips direction is a new swipe too. RISE_GAP is the least time between two
-   swipes found that way, so a mouse wheel whose deltas accelerate as it spins
-   does not read as a burst of gestures. */
-const STEP = 0.9
-const QUIET = 180
-const NUDGE = 4
-const RISE = 1.3
-const RISE_FROM = 8
-const RISE_GAP = 250
 
 /* ------------------------------------------------------------------
    The title, which starts life as a teaser at the foot of the hero: it
@@ -200,9 +173,6 @@ function Teaser({ reduce }) {
             className="display-lg text-center"
             shown={shown}
             exit
-            /* It rests pinned in the panel on a wide screen, so it needs the
-               window that opens above where it rests. */
-            exitOffset={PINNED_EXIT}
           />
           {!reduce && <Nudge opacity={nudge} />}
         </a>
@@ -212,118 +182,13 @@ function Teaser({ reduce }) {
 }
 
 /* ------------------------------------------------------------------
-   Stepping, one project per wheel gesture, while the panel is pinned.
-
-   The scroll owns which case is in front, and nothing else writes it, which is
-   why every way of moving (a wheel gesture, a click on a case at the side, a
-   keyboard focus) scrolls the page to that case's spot rather than setting
-   state the next frame would undo.
-   ------------------------------------------------------------------ */
-function useSteps(track, progress, last) {
-  /* Animated by hand and not with behavior: 'smooth', to know exactly when it
-     lands and to ease it with the site's one curve. Each frame's scroll is
-     spelled out as instant: html carries scroll-behavior: smooth, under which a
-     bare scrollTo starts a native glide of its own, restarted every frame. */
-  const travel = useRef(null)
-  // The case the page is travelling to, which is where a swipe landing mid-travel counts from.
-  const dest = useRef(0)
-  /* The wheel gesture under way: when its last event came, how big and which
-     way it went, when it began, and whether it was handed back to the page. */
-  const gesture = useRef({ at: 0, size: 0, sign: 0, start: 0, free: false })
-
-  function go(i) {
-    const box = track.current
-    if (!box || i < 0 || i > last) return
-    dest.current = i
-    const top = box.getBoundingClientRect().top + window.scrollY
-    const run = box.offsetHeight - window.innerHeight
-    travel.current?.stop()
-    travel.current = animate(window.scrollY, top + (i / Math.max(1, last)) * run, {
-      duration: STEP,
-      ease: EASE,
-      onUpdate: (v) => window.scrollTo({ top: v, behavior: 'instant' }),
-      onComplete: () => {
-        travel.current = null
-      },
-    })
-  }
-
-  /* One gesture, one project. Only while the panel is pinned, and only when
-     there is a case to go to in that direction: past the first or the last,
-     the wheel is handed back to the page and the section scrolls away as any
-     other would, for the rest of that gesture. Everything else a gesture sends
-     after its first event is swallowed, which is what makes it stop on the
-     case instead of sliding through. */
-  useEffect(() => {
-    function onWheel(e) {
-      const box = track.current
-      if (!box) return
-      /* A study is portalled to the body, so its wheel still bubbles up to
-         window, and the panel behind it is still pinned: without this the
-         gesture was swallowed here and the study could not scroll at all. */
-      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
-
-      const now = performance.now()
-      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-      const size = Math.abs(delta)
-      const sign = Math.sign(delta)
-      const g = gesture.current
-      const fresh =
-        now - g.at >= QUIET ||
-        (now - g.start >= RISE_GAP &&
-          ((sign !== 0 && sign !== g.sign) || (size >= RISE_FROM && size > g.size * RISE)))
-      g.at = now
-      g.size = size
-      if (sign) g.sign = sign
-      if (fresh) g.start = now
-
-      const rect = box.getBoundingClientRect()
-      if (rect.top > 1 || rect.bottom < window.innerHeight - 1) {
-        // A gesture that carries the page into the pin stops there.
-        g.free = false
-        return
-      }
-
-      if (!fresh || size < NUDGE) {
-        if (!g.free) e.preventDefault()
-        return
-      }
-
-      let to
-      if (travel.current) {
-        to = dest.current + sign
-      } else {
-        const f = progress.get() * last
-        to = sign > 0 ? Math.floor(f + 0.05) + 1 : Math.ceil(f - 0.05) - 1
-      }
-      if (to < 0 || to > last) {
-        g.free = !travel.current
-        if (!g.free) e.preventDefault()
-        return
-      }
-
-      g.free = false
-      e.preventDefault()
-      go(to)
-    }
-
-    window.addEventListener('wheel', onWheel, { passive: false })
-    return () => {
-      window.removeEventListener('wheel', onWheel)
-      travel.current?.stop()
-    }
-  }, [])
-
-  return go
-}
-
-/* ------------------------------------------------------------------
    Turning the ring by hand: a horizontal drag anywhere on the stage.
 
-   The scroll still owns which case is in front, so a drag scrolls the page,
-   DRAG_PER_CASE of the screen's width per case, and the ring follows it the way
-   it follows the wheel. Letting go lands on a case: the one the drag was
-   heading for once it has gone LAND_AFTER of the way there, else back.
+   The section owns which case is in front, as `position`, 0 to 1 across the
+   cases, which the ring reads every frame. A drag moves it DRAG_PER_CASE of the
+   screen's width per case and the ring follows. Letting go lands on a case: the
+   one the drag was heading for once it has gone LAND_AFTER of the way there,
+   else back.
 
    A drag is only a drag past DRAG_FROM pixels. Under that it is a click and is
    left alone, which is why the pointer is captured only then: captured from the
@@ -333,20 +198,15 @@ const DRAG_PER_CASE = 0.3
 const DRAG_FROM = 6
 const LAND_AFTER = 0.2
 
-function useDrag(track, progress, last, go, off) {
+function useDrag(position, last, go, show, off) {
   const drag = useRef(null)
   // Whether the gesture that just ended was a drag, read by the click after it.
   const dragged = useRef(false)
 
-  function run() {
-    const box = track.current
-    return box ? box.offsetHeight - window.innerHeight : 0
-  }
-
   function onPointerDown(e) {
     if (off || (e.pointerType === 'mouse' && e.button !== 0)) return
     dragged.current = false
-    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: window.scrollY, on: false }
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, from: position.get() * last, on: false }
   }
 
   function onPointerMove(e) {
@@ -360,18 +220,16 @@ function useDrag(track, progress, last, go, off) {
       dragged.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
     }
-    const box = track.current
-    const top = box.getBoundingClientRect().top + window.scrollY
-    const perCase = run() / Math.max(1, last)
-    const y = d.from - (dx / (window.innerWidth * DRAG_PER_CASE)) * perCase
-    window.scrollTo({ top: Math.min(top + run(), Math.max(top, y)), behavior: 'instant' })
+    const f = Math.min(last, Math.max(0, d.from - dx / (window.innerWidth * DRAG_PER_CASE)))
+    position.set(f / Math.max(1, last))
+    show(Math.round(f))
   }
 
   function onPointerUp(e) {
     const d = drag.current
     drag.current = null
     if (!d?.on) return
-    const f = progress.get() * last
+    const f = position.get() * last
     const dx = e.clientX - d.x
     go(dx < 0 ? Math.ceil(f - LAND_AFTER) : Math.floor(f + LAND_AFTER))
   }
@@ -421,19 +279,23 @@ export default function Work() {
   const reduce = useReducedMotion()
   const section = useRef(null)
   const last = projects.length - 1
-  const { scrollYProgress } = useScroll({ target: section, offset: ['start start', 'end end'] })
-  const go = useSteps(section, scrollYProgress, last)
+  /* Which case is in front, 0 to 1 across the cases. Read by the ring every
+     frame rather than through React state, so a drag re-renders nothing. */
+  const position = useMotionValue(0)
   const [active, setActive] = useState(0)
+
+  function go(i) {
+    const to = Math.min(last, Math.max(0, i))
+    setActive(to)
+    position.set(to / Math.max(1, last))
+  }
+
   /* Two steps to opening: `opened` is the case on its way into the camera, and
      `study` the copy that fades in once it has arrived. */
   const [opened, setOpened] = useState(null)
   const [study, setStudy] = useState(null)
   const onScreen = useInView(section, { margin: '20% 0px' })
-  const { dragged, handlers } = useDrag(section, scrollYProgress, last, go, Boolean(opened))
-
-  useMotionValueEvent(scrollYProgress, 'change', (p) =>
-    setActive(Math.min(last, Math.max(0, Math.round(p * last)))),
-  )
+  const { dragged, handlers } = useDrag(position, last, go, setActive, Boolean(opened))
 
   /* A case at the side comes to the front first; the one in front opens. */
   function pick(id) {
@@ -450,8 +312,8 @@ export default function Work() {
   }
 
   /* The page behind is sealed for exactly as long as a case is opening or a
-     study is open: no scrolling, which would turn the ring under the camera,
-     and inert takes it out of the tab order and the accessibility tree in one
+     study is open: no scrolling, which would carry the ring off under the
+     camera, and inert takes it out of the tab order and the accessibility tree in one
      attribute. Released the moment the study closes rather than when its exit
      animation ends, so a stalled animation can never strand the page. */
   const sealed = Boolean(opened || study)
@@ -484,21 +346,19 @@ export default function Work() {
     <section
       id="work"
       ref={section}
-      /* The track: one screen for the panel plus PER_PROJECT per step, at every
-         width. The gap before the dark section lives on the Mesh wrapper. */
-      className="relative h-[var(--track)]"
-      style={{ '--track': `${100 + last * PER_PROJECT}svh` }}
+      /* One screen, at every width: the ring turns by hand, not with the
+         scroll. The gap before the dark section lives on the Mesh wrapper. */
+      className="relative"
     >
       {/* overflow-clip, not hidden: hidden would make the panel a scroll
           container, which useScroll would take for the one the title lives in.
-          z-10 on the panel itself, since sticky makes it a stacking context and
-          the grid, painted after the section, would otherwise go over it. */}
-      <div className="sticky top-0 z-10 h-svh overflow-clip">
+          z-10 so the grid, painted after the section, stays under it. */}
+      <div className="relative z-10 h-svh overflow-clip">
         <div className="absolute inset-0 cursor-grab select-none active:cursor-grabbing" {...handlers}>
           <Suspense fallback={null}>
             <Ring
               projects={projects}
-              position={scrollYProgress}
+              position={position}
               opened={opened}
               reduce={reduce}
               running={onScreen && !study}
